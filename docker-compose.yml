@@ -1,0 +1,16 @@
+services:
+  watchfloor:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: file:/app/data/watchfloor.db
+      SUMMARIZER: manual
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: llama3.2
+    volumes:
+      - watchfloor-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  watchfloor-data:

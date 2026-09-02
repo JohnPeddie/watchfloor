@@ -1,0 +1,78 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  summary     String?
+  url         String   @unique
+  sourceName  String
+  sourceCode  String   @default("UNK")
+  sourceGrade String   @default("F6")
+  publishedAt DateTime?
+  imageUrl    String?
+  images      String   @default("[]")
+  bodyText    String?
+  analysis    String?
+  implication String?
+  lanes       String   @default("[]")
+  tags        String   @default("[]")
+  precedence  String   @default("ROUTINE")
+  confidence  Int      @default(0)
+  ref         String?
+  lat         Float?
+  lng         Float?
+  placeLabel  String?
+  rawExcerpt  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DailyBrief {
+  id        String       @id @default(cuid())
+  date      String       @unique
+  title     String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  stories   BriefStory[]
+}
+
+model BriefStory {
+  id                 String     @id @default(cuid())
+  briefId            String
+  brief              DailyBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  headline           String
+  body               String
+  tags               String     @default("[]")
+  precedence         String     @default("ROUTINE")
+  placeLabel         String?
+  lat                Float?
+  lng                Float?
+  relatedArticleIds  String     @default("[]")
+  imageUrl           String?
+  sortOrder          Int        @default(0)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model MarketSnapshot {
+  id         String   @id @default(cuid())
+  symbol     String   @unique
+  label      String
+  price      Float
+  changePct  Float?
+  seriesJson String   @default("[]")
+  fetchedAt  DateTime @default(now())
+}
+
+model Meta {
+  key   String @id
+  value String
+}

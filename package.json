@@ -1,0 +1,52 @@
+{
+  "name": "watchfloor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "prisma db push && tsx prisma/seed.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "enrich": "tsx scripts/enrich.ts",
+    "reclassify": "tsx scripts/reclassify.ts",
+    "stats": "tsx scripts/stats.ts",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cheerio": "^1.2.0",
+    "d3-geo": "^3.1.1",
+    "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "next": "15.5.24",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-globe.gl": "^2.38.0",
+    "recharts": "^3.10.1",
+    "rss-parser": "^3.13.0",
+    "three": "^0.185.1",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/d3-geo": "^3.1.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.185.4",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.24",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,83 @@
+"use client";
+
+import { PrecedenceChip, TagChips } from "@/components/Chips";
+import { Icon } from "@/components/Icon";
+import type { BriefDTO, BriefStoryDTO } from "@/lib/serializers";
+
+type BriefPaneProps = {
+  brief: BriefDTO | null;
+  selectedStoryId: string | null;
+  onSelectStory: (story: BriefStoryDTO) => void;
+};
+
+export function BriefPane({ brief, selectedStoryId, onSelectStory }: BriefPaneProps) {
+  return (
+    <section className="md-pane flex h-full min-h-0 flex-col">
+      <div className="md-pane-head">
+        <div>
+          <div className="md-title-lg">Daily brief</div>
+          <div className="md-label-sm">{brief ? brief.title : "No product loaded"}</div>
+        </div>
+        <span
+          className="md-mono rounded-full px-2 py-0.5 text-[10.5px]"
+          style={{ background: "var(--md-container-high)", color: "var(--md-on-surface-variant)" }}
+        >
+          {brief ? `${brief.stories.length} items` : "0"}
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+        {!brief && (
+          <p className="md-body px-1 py-4">
+            No brief in holdings. Run <code>npm run db:seed</code> to load the sample Global
+            Radar Report.
+          </p>
+        )}
+
+        {brief?.stories.map((story, idx) => {
+          const active = story.id === selectedStoryId;
+          return (
+            <button
+              key={story.id}
+              type="button"
+              onClick={() => onSelectStory(story)}
+              className="md-state block w-full rounded-2xl p-3 text-left"
+              style={{
+                background: active ? "var(--md-container-high)" : "var(--md-container)",
+                boxShadow: active ? "var(--elev-2)" : "var(--elev-1)",
+                borderLeft: active
+                  ? "3px solid var(--md-primary)"
+                  : "3px solid transparent",
+              }}
+            >
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="md-label-sm md-mono">
+                  {`Item ${String(idx + 1).padStart(2, "0")}`}
+                </span>
+                <PrecedenceChip precedence={story.precedence} dense />
+              </div>
+
+              <div className="md-title mb-1.5 leading-snug text-[var(--md-on-surface)]">
+                {story.headline}
+              </div>
+
+              <p className="md-body mb-2 line-clamp-2 text-[12.5px]">
+                {story.paragraphs[0]}
+              </p>
+
+              <div className="flex items-center justify-between gap-2">
+                <TagChips tags={story.tags} max={3} />
+                {story.placeLabel && (
+                  <span className="md-label-sm flex items-center gap-1 whitespace-nowrap">
+                    <Icon name="place" size={13} />
+                    {story.placeLabel}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
