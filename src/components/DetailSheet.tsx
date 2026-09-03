@@ -52,13 +52,15 @@ export function DetailSheet({
 
   return (
     <div
-      className="md-sheet absolute inset-x-3 bottom-3 z-40 flex max-h-[74%] flex-col overflow-hidden rounded-3xl"
+      /* Near full-height on phones so the report is readable; a bottom sheet
+         over the globe from `lg` up, where the map stays useful alongside. */
+      className="md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]"
       style={{ background: "var(--md-container)", boxShadow: "var(--elev-5)" }}
       role="dialog"
       aria-label="Report detail"
     >
       <div
-        className="flex items-start gap-3 px-4 pb-2 pt-3"
+        className="flex items-start gap-2 px-3 pb-2 pt-3 sm:gap-3 sm:px-4"
         style={{ background: "var(--md-container-high)" }}
       >
         <div className="min-w-0 flex-1">
@@ -92,7 +94,7 @@ export function DetailSheet({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
           <div className="space-y-2">
             <div
               className="aspect-video w-full overflow-hidden rounded-2xl"

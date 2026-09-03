@@ -4,6 +4,7 @@ import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, YAxis }
 import { TAG_ORDER, TAG_STYLES, type Tag } from "@/lib/classify";
 import { Icon } from "@/components/Icon";
 import type { MarketQuote } from "@/lib/markets";
+import type { SummarizerStatus } from "@/lib/serializers";
 
 type InsightPaneProps = {
   markets: MarketQuote[];
@@ -12,6 +13,7 @@ type InsightPaneProps = {
   onSelectTag: (tag: string | null) => void;
   precedenceCounts: Record<string, number>;
   feedStatus: Array<{ code: string; name: string; online: boolean; count: number }>;
+  summarizer: SummarizerStatus | null;
 };
 
 export function InsightPane({
@@ -21,6 +23,7 @@ export function InsightPane({
   onSelectTag,
   precedenceCounts,
   feedStatus,
+  summarizer,
 }: InsightPaneProps) {
   const oil = markets.filter((m) => m.label.includes("Crude"));
   const rest = markets.filter((m) => !m.label.includes("Crude"));
@@ -132,7 +135,67 @@ export function InsightPane({
           ))}
         </div>
       </section>
+
+      {summarizer && <SummarizerCard status={summarizer} />}
     </div>
+  );
+}
+
+/**
+ * Shows which summariser is in use and whether it is reachable, so it is
+ * obvious when the dashboard has degraded to offline extraction.
+ */
+function SummarizerCard({ status }: { status: SummarizerStatus }) {
+  const active = status.providers.find((p) => p.id === status.configured);
+  const usingRules = status.configured === "rules" || status.degraded;
+
+  return (
+    <section className="md-pane shrink-0">
+      <div className="md-pane-head">
+        <div className="md-title-lg flex items-center gap-2">
+          <Icon name="insights" size={18} className="text-[var(--md-secondary)]" />
+          Summarisation
+        </div>
+        <span
+          className="md-mono rounded-full px-2 py-0.5 text-[10px]"
+          style={{
+            background: usingRules ? "var(--md-container-high)" : "var(--md-primary-container)",
+            color: usingRules
+              ? "var(--md-on-surface-variant)"
+              : "var(--md-on-primary-container)",
+          }}
+        >
+          {usingRules ? "RULES" : "LLM"}
+        </span>
+      </div>
+
+      <div className="space-y-1.5 px-3 pb-3">
+        {status.providers.map((provider) => (
+          <div key={provider.id} className="flex items-center gap-2">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{
+                background: provider.reachable
+                  ? "var(--md-success)"
+                  : "var(--md-outline-variant)",
+              }}
+            />
+            <span className="md-mono flex-1 truncate text-[11px] text-[var(--md-on-surface-variant)]">
+              {provider.model ? `${provider.id}:${provider.model}` : provider.id}
+            </span>
+            {provider.id === status.configured && (
+              <span className="md-label-sm md-mono text-[var(--md-secondary)]">active</span>
+            )}
+          </div>
+        ))}
+
+        {status.degraded && active?.detail && (
+          <p className="md-body pt-1 text-[11px] leading-snug text-[var(--md-warning)]">
+            {active.detail}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

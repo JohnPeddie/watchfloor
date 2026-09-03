@@ -30,7 +30,7 @@ type NavRailProps = {
 export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
   return (
     <nav
-      className="flex shrink-0 flex-col items-center gap-1 py-3"
+      className="hidden shrink-0 flex-col items-center gap-1 py-3 xl:flex"
       style={{ width: 84, background: "var(--md-container-low)" }}
       aria-label="Intelligence lanes"
     >
@@ -75,6 +75,46 @@ export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
             >
               {item.label}
             </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * Lane selector for phones and tablets, where the vertical rail would cost too
+ * much width. Scrolls horizontally so every lane stays reachable one-handed.
+ */
+export function LaneChips({ activeTag, onSelectTag, counts }: NavRailProps) {
+  return (
+    <nav
+      className="md-hscroll flex shrink-0 items-center gap-2 px-3 py-2 xl:hidden"
+      style={{ background: "var(--md-container-low)" }}
+      aria-label="Intelligence lanes"
+    >
+      {RAIL_ITEMS.map((item) => {
+        const active = (item.tag ?? null) === activeTag;
+        const count = item.tag ? (counts[item.tag] ?? 0) : null;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelectTag(item.tag)}
+            aria-pressed={active}
+            className="md-chip md-chip-filter shrink-0"
+            style={
+              active
+                ? undefined
+                : {
+                    background: "var(--md-container-high)",
+                    color: "var(--md-on-surface-variant)",
+                  }
+            }
+          >
+            <Icon name={item.icon} size={14} />
+            {item.label}
+            {count != null && count > 0 && <span style={{ opacity: 0.7 }}>{count}</span>}
           </button>
         );
       })}

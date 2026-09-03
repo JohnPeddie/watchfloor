@@ -1,0 +1,118 @@
+{
+  "date": "2026-09-02",
+  "title": "Global Radar Report – Wednesday, 2 September 2026",
+  "bluf": "The Gulf is the day's main effort. Riyadh has formally accused Iran of killing two sailors aboard the Saudi supertanker Sidr, transits of the Strait of Hormuz have collapsed to four vessels, and Washington has answered with a fresh barrage against Iran's southern coast — repricing Brent, diesel and jet fuel in the process. Europe has its own attribution problem: Berlin has named Russia as responsible for the Leipzig airport drone plot, and Putin has declined to rule out striking UK military sites over British arms supplies to Ukraine. For the UK the two threads converge on cost, with 30-year gilt yields at their highest since 1998 leaving the new government almost no fiscal room before next month's Budget. Watch the OPEC+ meeting on Sunday and the size of the EU's next sanctions package.",
+  "stories": [
+    {
+      "headline": "Iran blamed for tanker attack that killed two as Hormuz traffic collapses to four ships",
+      "body": "Saudi Arabia has formally accused Iran of attacking the supertanker Sidr in the Strait of Hormuz on Monday night, killing two Filipino crew. The vessel is owned by Bahri, the Saudi national carrier, and was transiting the strait when it was hit. Riyadh's foreign ministry condemned the strike publicly on Wednesday, which is a marked shift in tone from a government that has spent the war so far avoiding direct attribution.\n\nCommercial traffic through the strait has effectively stopped. Transit counts have fallen to four ships, against a normal flow of well over a hundred a day, and Iran has now closed the waterway to shipping in practical terms even without declaring a blockade. Two tankers were reported hit on Monday alone.\n\nThe price response was immediate. Brent was already up around 2% on the day before adding almost another 2% on the strike reports, and US diesel has climbed to roughly $104, closing on the peak it reached during the April fighting. Ryanair — about 80% hedged at $67 a barrel — warned that less-hedged competitors could be pushed out of business by the jet fuel spike, and Goldman has flagged that global refinery runs are being squeezed.\n\nFor the UK this lands on fuel import costs, war-risk insurance premiums for British-linked tonnage, and Royal Navy commitments in the region. The immediate thing to watch is Sunday's OPEC+ meeting, where seven core members are expected to leave October output unchanged rather than release barrels to cool the price.",
+      "tags": ["KINETIC", "ENERGY", "MARITIME", "DEFENCE"],
+      "precedence": "FLASH",
+      "placeLabel": "Strait of Hormuz",
+      "lat": 26.5667,
+      "lng": 56.25,
+      "match": [
+        "hormuz",
+        "iranian attack on saudi tanker",
+        "tanker+killed",
+        "opec+",
+        "diesel",
+        "jet fuel"
+      ]
+    },
+    {
+      "headline": "US strikes Iran's southern coast as Tehran alleges wedding deaths and fires on Gulf neighbours",
+      "body": "The United States has launched a new barrage of strikes on Iranian targets around the Strait of Hormuz, aimed at the launchers and mining capability Tehran has been using to menace shipping. Iranian state media reported strikes along the southern coast and against a civilian airport.\n\nIran has accused Washington of a war crime, saying a US missile struck a family wedding at a home in Kuhestak, a small coastal town overlooking the strait, killing four people including two children. The Iranian Red Crescent attributed the deaths to shrapnel. The US denies targeting civilians.\n\nTehran resumed fire on US regional positions after roughly a month of relative quiet, with Iranian television claiming American bases at Irbil were hit, and extended its retaliation to Gulf neighbours. Moscow has moved closer to Tehran's side, with Putin professing support for Iran even while sustaining his own offensive in Ukraine, which raises the prospect of Russian materiel or targeting assistance.\n\nThe risk to watch is horizontal escalation: strikes on Gulf states hosting US forces would pull the UAE, Kuwait and Qatar into a war they have tried to stay out of, and would put UK basing and overflight arrangements in the region under immediate strain.",
+      "tags": ["KINETIC", "DEFENCE", "POLITICAL"],
+      "precedence": "IMMEDIATE",
+      "placeLabel": "Iran",
+      "lat": 32.4279,
+      "lng": 53.688,
+      "match": [
+        "killed four at wedding",
+        "fires on its gulf neighbors",
+        "barrage of strikes on iran",
+        "military strikes iran",
+        "putin signals support for iran"
+      ]
+    },
+    {
+      "headline": "Berlin names Russia behind Leipzig airport drone plot as Putin hints at UK targets",
+      "body": "Germany has concluded that Russia was responsible for the failed explosive drone attack on Leipzig/Halle airport last month, and announced measures against Moscow alongside the finding. The drone was discovered on 4 August next to a Ukrainian aircraft with an explosive device aboard; a detonator was removed before it could function. A month-long investigation identified what Berlin described as the signatures of a Russian hybrid operation.\n\nThe European response has been unusually direct. Ursula von der Leyen called Leipzig \"a new escalation on European Union soil directly attributed to Russia\", and Kaja Kallas said the bloc is preparing further sanctions. NATO leadership framed Russian recklessness as a \"new normal\" requiring a standing response rather than case-by-case protest.\n\nThe UK is explicitly in scope. Asked at a press conference whether Russia might strike military facilities in the UK in retaliation for British arms supplies to Ukraine, Putin answered with a single sentence that stopped well short of a denial. Separately, Ukraine's sanctions commissioner reported that dozens of American and European components are still reaching Russian ballistic missile production despite nearly 24,000 designations since 2022.\n\nAviation is the near-term exposure. Zelensky has warned airlines and their insurers that Russian airspace is \"effectively closing\" as Ukraine scales up deep drone operations, and airports across northern Europe should now be treated as targets for hybrid attack rather than incidental locations.",
+      "tags": ["DEFENCE", "ESPIONAGE", "KINETIC", "UK"],
+      "precedence": "IMMEDIATE",
+      "placeLabel": "Germany",
+      "lat": 51.1657,
+      "lng": 10.4515,
+      "match": [
+        "leipzig",
+        "step up pressure on russia",
+        "eu pursuing more russia sanctions",
+        "veiled threat",
+        "zelensky says airlines",
+        "us tech found in russian ballistic missiles"
+      ]
+    },
+    {
+      "headline": "UK long-term borrowing costs hit 28-year high before Burnham's first Budget",
+      "body": "The yield on a 30-year gilt reached 5.89% on Tuesday, its highest level since 1998, while 10-year yields are at their highest since 2008. The move is being driven by global inflation worry rather than anything specific to the UK, but it lands on a new government with a Budget due next month.\n\nAndy Burnham, who replaced Keir Starmer as prime minister in July, took his first Prime Minister's Questions on Wednesday and was pressed hard by Kemi Badenoch on where spending will be cut and how the rising debt burden will be handled. Talk of a new-look PMQs did not survive contact with the format.\n\nAndrew Bailey used the G20 finance ministers' meeting to warn that a collapse in AI-sector growth could trigger a wider market correction, and that AI introduces a significant cyber security risk to financial systems. Tech firms are expected to raise $400-500bn in the bond markets this year, which is part of why Mohamed el-Erian and others are describing conditions as a bond market wildfire.\n\nThe defence read-through matters here. Every basis point on long-dated gilts narrows the fiscal room for the procurement and readiness commitments made over the past year, and does so at exactly the moment Gulf disruption is pushing fuel and freight costs up. Watch the Budget date and any pre-briefing on the capital envelope.",
+      "tags": ["UK", "MARKETS", "POLITICAL"],
+      "precedence": "PRIORITY",
+      "placeLabel": "London",
+      "lat": 51.5074,
+      "lng": -0.1278,
+      "match": [
+        "borrowing costs",
+        "pmqs",
+        "bond market wildfire",
+        "ai could cause global economic downturn"
+      ]
+    },
+    {
+      "headline": "Data on 8.7 million people published after breach of three UK airports",
+      "body": "Criminal hackers have posted the personal data of nearly nine million people online following a breach of Manchester, London Stansted and East Midlands airports. Because the data is now in open circulation rather than held for ransom, affected customers face secondary fraud and phishing attempts from actors unconnected to the original intrusion, and should be treated as permanently exposed.\n\nThe wider week has been heavy on exploited edge infrastructure. SonicWall is warning that two SMA1000 zero-days are being chained for remote code execution against the 6210, 7210 and 8200v models. A critical authentication bypass in JFrog Artifactory, CVE-2026-82329, is being used to forge administrative tokens and is present in the default self-managed configuration. An SQL injection flaw in the All-in-One WP Migration and Backup plugin exposes a large number of WordPress sites to takeover.\n\nOn the data side, Aesto Health has told US regulators that a December cyberattack exposed records for 9,540,683 people, and the FBI is investigating a dark-web service selling digital scans of more than 153 million US and Canadian driving licences. Enforcement had one clear win: international agencies seized the infrastructure of Sality, a peer-to-peer botnet active for more than two decades, by turning its own architecture against its suspected Russian operators.\n\nCISA also added seven vulnerabilities to its exploited catalogue and issued a cluster of Rockwell Automation advisories covering ControlLogix, FactoryTalk and RSLinx. Those are industrial control products, so the exposure runs into UK manufacturing and defence-industrial estates rather than just IT networks.",
+      "tags": ["CYBER", "UK", "TECH"],
+      "precedence": "PRIORITY",
+      "placeLabel": "Manchester",
+      "lat": 53.4808,
+      "lng": -2.2426,
+      "match": [
+        "airports hack",
+        "sonicwall",
+        "jfrog artifactory",
+        "aesto",
+        "sality",
+        "drivers licenses",
+        "wordpress backup plugin"
+      ]
+    },
+    {
+      "headline": "Washington takes a fifth of Venezuela's reserves as Chevron commits $7bn to expansion",
+      "body": "US Energy Secretary Chris Wright travelled to Venezuela for a signing ceremony on a deal that would place roughly a fifth of the country's oil reserves under American control. Trump has described it as the biggest oil deal in history.\n\nChevron, already the largest foreign operator in the country, will invest more than $7bn through its three Venezuelan joint ventures to 2031, roughly doubling output to about 600,000 barrels per day. The company says it has secured improved fiscal, commercial and legal terms plus additional acreage in the Orinoco Belt, with production costs staying below $20 a barrel.\n\nThe deal is drawing criticism as gunpoint diplomacy, with Wright denying Washington intends to take the country's oil and framing it instead as a transformation of relations. Scrutiny is also falling on Alejandro Betancourt, principal of the company the US is partnering with, who has faced money laundering investigations in Spain, the United States and Switzerland.\n\nRead alongside the Gulf, the timing is the point. With Hormuz effectively closed and OPEC+ expected to hold October output flat, locking in Western Hemisphere barrels is a hedge against a sustained Middle East supply premium. One analyst has flagged the suspicious timing of the announcement itself, made on a Friday evening ahead of a market open.",
+      "tags": ["ENERGY", "POLITICAL", "MARKETS"],
+      "precedence": "PRIORITY",
+      "placeLabel": "Venezuela",
+      "lat": 6.4238,
+      "lng": -66.5897,
+      "match": ["venezuela", "chevron"]
+    },
+    {
+      "headline": "NATO proves worldwide submarine rescue airlift as MoD opens force-protection funding",
+      "body": "The NATO Submarine Rescue System has completed Exercise Flying Fish, demonstrating that the Royal Air Force can move the system by air to anywhere in the world. The capability is tri-national, held jointly by the UK, France and Norway, and the exercise was about proving the strategic airlift chain rather than the submersible itself.\n\nThe Ministry of Defence has separately opened a fast-paced funding route for force-protection innovation, continuing the pattern of short-cycle procurement for defensive technology. In Parliament, a group of peers led by the Liberal Democrats' Lord Clement-Jones is pressing for statutory power to deactivate powerful AI systems and shut down UK data centres where they present a national security threat.\n\nAllied activity is expanding faster than the UK's. Poland is heading for a record 200 billion zloty ($53.8bn) military budget in 2026, and next week's MSPO show will be its largest ever with around 1,000 exhibitors. The US has approved an $800m Bell helicopter package for Iraq including GAU-19 and M260 launchers. American Rheinmetall has delivered the first Lynx XM30 prototype in the programme to replace the M2 Bradley, and the US Navy has published new specifications for a carrier-based Collaborative Combat Aircraft capable of carrying up to five tons of weapons.\n\nIn the Pacific, China has commissioned a new guided-missile frigate after twenty years of development, and Taiwanese assessments focus on its anti-submarine, escort and fleet air defence contribution rather than the platform itself. Elsewhere, Ukraine's recently ousted defence minister Mykhailo Fedorov is launching a defence technology venture with Palantir chief executive Alex Karp as first investor.",
+      "tags": ["DEFENCE", "UK", "MARITIME", "TECH"],
+      "precedence": "ROUTINE",
+      "placeLabel": "NATO HQ",
+      "lat": 50.8798,
+      "lng": 4.42,
+      "match": [
+        "submarine rescue",
+        "force-protection",
+        "kill switch",
+        "poland readies",
+        "helicopter sale to iraq",
+        "guided-missile frigate",
+        "palantir"
+      ]
+    }
+  ]
+}

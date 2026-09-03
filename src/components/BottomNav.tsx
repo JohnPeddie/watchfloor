@@ -1,0 +1,84 @@
+"use client";
+
+import { Icon } from "@/components/Icon";
+
+/** The four panes, shown one at a time below the `md` breakpoint. */
+export type PaneId = "brief" | "map" | "traffic" | "insight";
+
+const DESTINATIONS: { id: PaneId; label: string; icon: string }[] = [
+  { id: "brief", label: "Brief", icon: "article" },
+  { id: "map", label: "Map", icon: "public" },
+  { id: "traffic", label: "Stream", icon: "radar" },
+  { id: "insight", label: "Insight", icon: "insights" },
+];
+
+type BottomNavProps = {
+  active: PaneId;
+  onChange: (pane: PaneId) => void;
+  /** Count of FLASH items, badged on the stream destination. */
+  flashCount: number;
+};
+
+/**
+ * Material navigation bar for phones. Hidden from `md` up, where tablets show
+ * every pane at once.
+ */
+export function BottomNav({ active, onChange, flashCount }: BottomNavProps) {
+  return (
+    <nav
+      className="flex shrink-0 items-stretch justify-around md:hidden"
+      style={{
+        background: "var(--md-container)",
+        boxShadow: "var(--elev-2)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+      aria-label="Dashboard sections"
+    >
+      {DESTINATIONS.map((destination) => {
+        const isActive = destination.id === active;
+        return (
+          <button
+            key={destination.id}
+            type="button"
+            onClick={() => onChange(destination.id)}
+            aria-current={isActive ? "page" : undefined}
+            className="flex flex-1 flex-col items-center gap-0.5 pb-1.5 pt-2"
+          >
+            <span
+              className="relative flex h-8 w-16 items-center justify-center rounded-full transition-colors"
+              style={{
+                background: isActive ? "var(--md-secondary-container)" : "transparent",
+                color: isActive
+                  ? "var(--md-on-secondary-container)"
+                  : "var(--md-on-surface-variant)",
+              }}
+            >
+              <Icon name={destination.icon} size={20} />
+              {destination.id === "traffic" && flashCount > 0 && (
+                <span
+                  className="md-mono absolute right-2 top-0 rounded-full px-1 text-[9px] font-medium"
+                  style={{
+                    background: "var(--md-error)",
+                    color: "var(--md-on-error, #3b0907)",
+                    minWidth: 15,
+                    textAlign: "center",
+                  }}
+                >
+                  {flashCount > 99 ? "99+" : flashCount}
+                </span>
+              )}
+            </span>
+            <span
+              className="text-[11px] font-medium"
+              style={{
+                color: isActive ? "var(--md-on-surface)" : "var(--md-on-surface-variant)",
+              }}
+            >
+              {destination.label}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

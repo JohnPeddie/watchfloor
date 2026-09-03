@@ -42,7 +42,26 @@ export type BriefDTO = {
   id: string;
   date: string;
   title: string;
+  bluf: string | null;
+  /** "authored" for hand-written briefs, otherwise the summariser id. */
+  source: string;
   stories: BriefStoryDTO[];
+};
+
+/** Mirrors ProviderHealth from lib/summarize, as returned by /api/summarizer. */
+export type ProviderHealthDTO = {
+  id: string;
+  label: string;
+  model: string | null;
+  reachable: boolean;
+  detail: string | null;
+  latencyMs: number | null;
+};
+
+export type SummarizerStatus = {
+  configured: string;
+  degraded: boolean;
+  providers: ProviderHealthDTO[];
 };
 
 export type GlobePin = {

@@ -18,10 +18,33 @@ Runs entirely on your own machine. No API keys, no cloud services, no paywalled 
 npm install
 npm run db:setup
 npm run ingest
+npm run brief
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). The layout adapts to the
+screen it is on:
+
+| Width | Layout |
+| --- | --- |
+| Below 768px (phones) | One pane at a time via the bottom navigation bar. The app bar and lane chips slide away as you scroll so the reporting gets the full screen, and return when you scroll back up. |
+| 768–1279px (tablets) | Two columns — reporting on the left (brief above the stream), globe and analysis on the right. Lane chips stay as a horizontal row. |
+| 1280px and up (desktop) | Three columns, with the vertical lane rail on the far left. |
+
+To reach it from a phone or tablet on the same network, serve on all
+interfaces and ask for the current URL:
+
+```bash
+npm run dev:lan
+npm run where
+```
+
+`npm run where` matters because the laptop's DHCP address changes whenever it
+joins a different network. It lists every address the dashboard answers on and
+flags which ones survive a network change.
+
+To run it on a Linux server and reach it from anywhere on your network, see
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 > **Windows ARM64 (Snapdragon):** Prisma uses `engineType = "binary"` so the x64 query engine can run under emulation. Keep `PRISMA_CLIENT_ENGINE_TYPE=binary` in `.env` (see `.env.example`).
 
@@ -41,34 +64,84 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run db:setup` | Create SQLite DB + seed sample brief |
 | `npm run db:seed` | Re-seed the sample Global Radar Report |
 | `npm run ingest` | CLI RSS ingest |
+| `npm run brief` | Build today's brief (authored file if present, else generated) |
+| `npm run summarize` | Re-summarise articles with the active provider |
 | `npm run enrich` | Backfill body text, images, analysis and geocoding on stored articles |
 | `npm run reclassify` | Re-apply tag/precedence rules to stored articles |
 | `npm run stats` | Report enrichment coverage |
+| `npm run where` | Print every URL the dashboard is reachable on |
 | `npm run dev` | Local Next.js server |
+| `npm run dev:lan` | Dev server bound to all interfaces, for phones and tablets |
 | `npm run build && npm start` | Production mode on this machine |
 
-### Authoring a daily brief (manual / agent)
+Useful flags:
 
-Until Ollama is enabled, briefs are authored data — not auto-summarised. Edit [`prisma/seed.ts`](prisma/seed.ts) or insert via Prisma / SQLite:
+```bash
+npm run brief -- --date=2026-09-02     # rebuild a specific day
+npm run brief -- --auto --dry-run      # preview generated stories, write nothing
+npm run brief -- --auto --stories=5    # ignore any authored file
+npm run summarize -- --limit=25        # bounded batch
+npm run summarize -- --all             # re-do everything
+```
 
-- `DailyBrief.date` — `YYYY-MM-DD`
-- `DailyBrief.title` — e.g. `Global Radar Report – Monday, 31 August 2026`
-- `BriefStory` rows — `headline`, `body` (paragraphs separated by blank lines), optional `placeLabel` / `lat` / `lng`
+## How summarisation works
 
-Re-run `npm run db:seed` after editing the seed file.
+There are two products — a per-article read and the daily brief — and both go
+through one provider interface in
+[`src/lib/summarize/types.ts`](src/lib/summarize/types.ts). Swapping the engine
+is an environment variable, not a code change.
 
-### Local LLM later
+| Provider | `SUMMARIZER` | Behaviour |
+|---|---|---|
+| Rules engine | `rules` (default) | Frequency-scored sentence extraction plus tag-driven implication templates. Offline, instant, always available. |
+| Ollama | `ollama` | A local LLM writes the analysis, the implication, each brief story and the bottom line. |
 
-1. Install [Ollama](https://ollama.com) and pull a model (`ollama pull llama3.2`).
-2. Set in `.env`:
+Two properties make this safe to leave pointed at Ollama permanently:
+
+- **Automatic fallback.** Every run probes the provider first. If the model
+  host is off, unreachable, or missing the model, the run degrades to the rules
+  engine rather than failing, and says so. The dashboard's Summarisation card
+  shows when this has happened.
+- **Provenance.** Each article records which provider wrote its analysis in
+  `analysisSource`. Ingest never overwrites a summary from a better provider
+  with a rule-generated one, and `npm run summarize` targets only what is
+  missing or stale — so enabling Ollama upgrades the backlog and later runs
+  become no-ops.
+
+Ingest deliberately stays on the offline engine to keep collection fast; the
+LLM runs as a separate pass.
+
+### Authoring a brief by hand
+
+A file at `content/briefs/YYYY-MM-DD.json` always wins over generation for
+that date, so a written product is never clobbered by a scheduled run. See
+[`content/briefs/2026-09-02.json`](content/briefs/2026-09-02.json) for the
+shape. Each story's `match` array links it to ingested articles by headline
+substring, which populates "Related reporting" in the detail sheet.
+
+With no authored file, `npm run brief` clusters the last 30 hours of reporting
+by headline overlap, shared location and shared themes, ranks the clusters by
+urgency, corroboration and standing relevance, and writes up the top seven.
+
+### Enabling Ollama
+
+```bash
+ollama pull llama3.1:8b
+```
 
 ```
 SUMMARIZER=ollama
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2
+OLLAMA_BASE_URL=http://192.168.1.50:11434   # wherever the model runs
+OLLAMA_MODEL=llama3.1:8b
 ```
 
-3. Call `getSummarizer()` from a future brief-generation script/API — the stub lives in [`src/lib/summarizer/`](src/lib/summarizer/).
+```bash
+curl -s localhost:3000/api/summarizer   # confirm reachable, not degraded
+npm run summarize -- --limit=50         # upgrade existing summaries
+```
+
+Full network setup, including binding Ollama to the LAN, is in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#adding-the-ollama-summariser).
 
 ### Feeds
 

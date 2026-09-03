@@ -37,14 +37,18 @@ export function AppBar({
 
   return (
     <header
-      className="relative z-30 flex shrink-0 items-center gap-4 px-4 py-2.5"
-      style={{ background: "var(--md-container)", boxShadow: "var(--elev-2)" }}
+      className="relative z-30 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:gap-4 sm:px-4 sm:py-2.5"
+      style={{
+        background: "var(--md-container)",
+        boxShadow: "var(--elev-2)",
+        paddingTop: "max(0.5rem, env(safe-area-inset-top))",
+      }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         <WatchfloorMark />
         <div className="leading-tight">
           <div className="md-title-lg text-[var(--md-on-surface)]">Watchfloor</div>
-          <div className="md-label-sm">All-source intelligence</div>
+          <div className="md-label-sm hidden sm:block">All-source intelligence</div>
         </div>
       </div>
 
@@ -71,7 +75,7 @@ export function AppBar({
         </label>
       </div>
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-2 sm:gap-4">
         <div className="hidden items-center gap-4 lg:flex">
           <Stat label="Holdings" value={`${total}`} />
           <Stat
@@ -97,10 +101,40 @@ export function AppBar({
           </span>
         </div>
 
-        <button type="button" className="md-btn-filled" onClick={onIngest} disabled={ingesting}>
+        <button
+          type="button"
+          className="md-btn-filled"
+          onClick={onIngest}
+          disabled={ingesting}
+          aria-label={ingesting ? "Collecting" : "Collect"}
+        >
           <Icon name="refresh" size={18} className={ingesting ? "md-pulse" : ""} />
-          {ingesting ? "Collecting" : "Collect"}
+          <span className="hidden sm:inline">{ingesting ? "Collecting" : "Collect"}</span>
         </button>
+      </div>
+
+      {/* Search moves to its own row on phones, where it cannot share the bar. */}
+      <div className="w-full md:hidden">
+        <label className="md-search">
+          <Icon name="search" size={18} />
+          <input
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Search reporting"
+            aria-label="Search reporting"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => onQueryChange("")}
+              className="md-icon-btn"
+              style={{ width: 28, height: 28 }}
+              aria-label="Clear search"
+            >
+              <Icon name="close" size={16} />
+            </button>
+          )}
+        </label>
       </div>
 
       {ingesting && (

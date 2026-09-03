@@ -437,3 +437,55 @@ body {
   height: 100%;
   object-fit: cover;
 }
+
+/* ---------------- Responsive behaviour ---------------- */
+
+/* Horizontal chip strip used for lane selection on compact screens. */
+.md-hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.md-hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  /* Comfortable touch targets and no iOS zoom-on-focus (needs >=16px). */
+  .md-search input {
+    font-size: 16px;
+    padding-block: 4px;
+  }
+  .md-chip {
+    min-height: 32px;
+  }
+  .md-icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .md-list-item {
+    padding: 12px;
+  }
+  /* Markers shrink so a phone-sized globe is not covered by imagery. */
+  .globe-marker {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Touch devices have no hover, so the scale-up only causes stray repaints. */
+@media (hover: none) {
+  .globe-marker:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-sheet,
+  .md-pulse,
+  .md-progress > span {
+    animation: none;
+  }
+}

@@ -1,15 +1,80 @@
+# Watchfloor on a Linux home server, reachable over the LAN.
+#
+#   docker compose up -d --build
+#
+# Override anything in a .env file next to this compose file. See
+# docs/DEPLOYMENT.md for the full walkthrough.
+
+name: watchfloor
+
 services:
-  watchfloor:
-    build: .
-    ports:
-      - "3000:3000"
+  # Applies the Prisma schema to the SQLite volume, then exits. Runs before the
+  # app so a fresh volume or a schema change is handled without manual steps.
+  migrate:
+    build:
+      context: .
+      target: tools
     environment:
       DATABASE_URL: file:/app/data/watchfloor.db
-      SUMMARIZER: manual
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: llama3.2
     volumes:
       - watchfloor-data:/app/data
+    command: ["npx", "prisma", "db", "push", "--skip-generate"]
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    # Bind on all interfaces so other machines on the network can connect.
+    # Change to "127.0.0.1:3000:3000" to expose only to the server itself.
+    ports:
+      - "${WATCHFLOOR_BIND:-0.0.0.0}:${WATCHFLOOR_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: file:/app/data/watchfloor.db
+      # "rules" runs fully offline. Switch to "ollama" once the model host is
+      # up; runs fall back to rules automatically if it is unreachable.
+      SUMMARIZER: ${SUMMARIZER:-rules}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      - watchfloor-data:/app/data
+    # Lets the container reach an Ollama instance on the Docker host itself.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Periodic collection. Drives the app over HTTP rather than touching the
+  # database directly, which keeps SQLite to a single writer and avoids lock
+  # contention. Comment this service out to collect manually only.
+  scheduler:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CYCLE_SECONDS: ${CYCLE_SECONDS:-3600}
+      SUMMARIZE_BATCH: ${SUMMARIZE_BATCH:-20}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "scheduler: cycle every $${CYCLE_SECONDS}s"
+        while true; do
+          echo "[$$(date -u +%FT%TZ)] collecting"
+          curl -fsS -m 600 -X POST http://app:3000/api/ingest \
+            -H 'Content-Type: application/json' \
+            -d '{"fetchImages":true,"maxPerFeed":12}' || echo "ingest failed"
+          curl -fsS -m 600 -X POST http://app:3000/api/summarize \
+            -H 'Content-Type: application/json' \
+            -d "{\"limit\":$${SUMMARIZE_BATCH}}" || echo "summarize failed"
+          curl -fsS -m 600 -X POST http://app:3000/api/brief \
+            -H 'Content-Type: application/json' -d '{}' || echo "brief failed"
+          sleep "$${CYCLE_SECONDS}"
+        done
     restart: unless-stopped
 
 volumes:

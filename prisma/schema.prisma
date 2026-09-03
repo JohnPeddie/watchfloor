@@ -22,6 +22,10 @@ model Article {
   bodyText    String?
   analysis    String?
   implication String?
+  // Which summariser produced `analysis` — e.g. "rules" or "ollama:llama3.2".
+  // Lets a later Ollama pass target only the rule-generated summaries.
+  analysisSource String?
+  analysedAt     DateTime?
   lanes       String   @default("[]")
   tags        String   @default("[]")
   precedence  String   @default("ROUTINE")
@@ -39,6 +43,10 @@ model DailyBrief {
   id        String       @id @default(cuid())
   date      String       @unique
   title     String
+  // Bottom line up front: the one-paragraph read across the whole day.
+  bluf      String?
+  // "authored" for hand-written briefs, otherwise the provider id.
+  source    String       @default("authored")
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   stories   BriefStory[]

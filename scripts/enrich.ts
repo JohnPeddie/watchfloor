@@ -40,9 +40,22 @@ async function main() {
       fetched += 1;
     }
 
-    const analysis = summariseExtractive(bodyText, article.rawExcerpt ?? article.summary);
     const place = geocodeText(article.title, article.rawExcerpt ?? article.summary);
-    const implication = deriveImplication(classification.tags, place?.label ?? null);
+
+    // Preserve summaries produced by a better provider (e.g. Ollama).
+    const hasBetterAnalysis =
+      Boolean(article.analysis) &&
+      Boolean(article.analysisSource) &&
+      article.analysisSource !== "rules";
+
+    const analysisFields = hasBetterAnalysis
+      ? {}
+      : {
+          analysis: summariseExtractive(bodyText, article.rawExcerpt ?? article.summary),
+          implication: deriveImplication(classification.tags, place?.label ?? null),
+          analysisSource: "rules",
+          analysedAt: new Date(),
+        };
 
     await prisma.article.update({
       where: { id: article.id },
@@ -50,8 +63,7 @@ async function main() {
         images: JSON.stringify(images),
         imageUrl: images[0] ?? article.imageUrl,
         bodyText,
-        analysis,
-        implication,
+        ...analysisFields,
         lat: place?.lat ?? null,
         lng: place?.lng ?? null,
         placeLabel: place?.label ?? null,

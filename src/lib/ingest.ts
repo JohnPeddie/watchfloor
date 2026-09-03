@@ -156,8 +156,22 @@ export async function runIngest(options?: {
         result.enriched += 1;
       }
 
-      const analysis = summariseExtractive(bodyText, rawExcerpt || null);
-      const implication = deriveImplication(classification.tags, place?.label ?? null);
+      // Ingest always uses the fast offline summariser; the LLM pass runs
+      // separately via scripts/summarize.ts. If a richer summary already
+      // exists, leave it alone rather than downgrading it here.
+      const hasBetterAnalysis =
+        Boolean(existing?.analysis) &&
+        Boolean(existing?.analysisSource) &&
+        existing?.analysisSource !== "rules";
+
+      const analysisFields = hasBetterAnalysis
+        ? {}
+        : {
+            analysis: summariseExtractive(bodyText, rawExcerpt || null),
+            implication: deriveImplication(classification.tags, place?.label ?? null),
+            analysisSource: "rules",
+            analysedAt: new Date(),
+          };
 
       const data = {
         title,
@@ -169,8 +183,7 @@ export async function runIngest(options?: {
         imageUrl: images[0] ?? existing?.imageUrl ?? null,
         images: JSON.stringify(images),
         bodyText,
-        analysis,
-        implication,
+        ...analysisFields,
         lanes: JSON.stringify(feed.lanes),
         tags: JSON.stringify(classification.tags),
         precedence: classification.precedence,
