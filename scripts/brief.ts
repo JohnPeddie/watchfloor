@@ -25,7 +25,8 @@ async function main() {
   const forceAuto = process.argv.includes("--auto");
   const dryRun = process.argv.includes("--dry-run");
   const stories = Number(arg("stories") ?? 7);
-  const windowHours = Number(arg("window") ?? 30);
+  const windowHours = Number(arg("window") ?? 72);
+  const minSources = Number(arg("min-sources") ?? 4);
 
   if (!forceAuto) {
     const authored = await loadAuthoredBrief(date);
@@ -55,7 +56,8 @@ async function main() {
   const result = await generateBrief({
     date,
     maxStories: Number.isFinite(stories) ? stories : 7,
-    windowHours: Number.isFinite(windowHours) ? windowHours : 30,
+    windowHours: Number.isFinite(windowHours) ? windowHours : 72,
+    minSources: Number.isFinite(minSources) ? minSources : 4,
     providerId: arg("provider"),
     dryRun,
   });

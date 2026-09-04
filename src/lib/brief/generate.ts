@@ -8,8 +8,14 @@ export type GenerateOptions = {
   /** Brief date as YYYY-MM-DD. Defaults to today (UTC). */
   date?: string;
   maxStories?: number;
-  /** How far back to look for reporting, in hours. */
+  /**
+   * How far back to look for reporting, in hours. Three days by default: a
+   * story needs four outlets on it to qualify, and that corroboration
+   * accumulates over more than one news cycle.
+   */
   windowHours?: number;
+  /** Reports required before a story earns a place in the brief. */
+  minSources?: number;
   /** Overrides SUMMARIZER for this run. */
   providerId?: string;
   /** Build the brief but do not write it to the database. */
@@ -59,7 +65,7 @@ function parseJsonArray<T>(raw: string): T[] {
 /** Pulls the reporting window for a brief date out of the database. */
 export async function loadCandidates(
   date: string,
-  windowHours = 30,
+  windowHours = 72,
 ): Promise<ClusterCandidate[]> {
   const end = new Date(`${date}T23:59:59.999Z`);
   const start = new Date(end.getTime() - windowHours * 3600_000);
@@ -97,10 +103,14 @@ export async function loadCandidates(
 export async function generateBrief(options: GenerateOptions = {}): Promise<GenerateResult> {
   const date = options.date ?? todayUtc();
   const maxStories = options.maxStories ?? 7;
+  const minSources = options.minSources ?? 4;
   const { provider, health, fellBack, requestedId } = await resolveProvider(options.providerId);
 
-  const candidates = await loadCandidates(date, options.windowHours ?? 30);
-  const clusters = clusterArticles(candidates, { maxClusters: maxStories });
+  const candidates = await loadCandidates(date, options.windowHours ?? 72);
+  const clusters = clusterArticles(candidates, {
+    maxClusters: maxStories,
+    minSources,
+  });
 
   const stories: StoryDraft[] = [];
   for (let i = 0; i < clusters.length; i++) {
@@ -119,6 +129,21 @@ export async function generateBrief(options: GenerateOptions = {}): Promise<Gene
       sortOrder: i,
     });
   }
+
+  const precedenceRank: Record<string, number> = {
+    FLASH: 4,
+    IMMEDIATE: 3,
+    PRIORITY: 2,
+    ROUTINE: 1,
+  };
+  stories.sort(
+    (a, b) =>
+      (precedenceRank[b.precedence] ?? 0) - (precedenceRank[a.precedence] ?? 0) ||
+      a.sortOrder - b.sortOrder,
+  );
+  stories.forEach((story, index) => {
+    story.sortOrder = index;
+  });
 
   let bluf: string | null = null;
   if (provider.writeBluf && stories.length > 0) {

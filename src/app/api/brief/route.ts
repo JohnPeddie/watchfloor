@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { toBriefStoryDTO } from "@/lib/serializers";
+import { parseJsonArray, toBriefSourceDTO, toBriefStoryDTO } from "@/lib/serializers";
 import { importAuthoredBrief, loadAuthoredBrief } from "@/lib/brief/authored";
 import { generateBrief, todayUtc } from "@/lib/brief/generate";
 
@@ -23,6 +23,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ brief: null });
   }
 
+  // Resolve every story's reports in one query so the source web can be drawn
+  // without depending on which articles the client happens to have loaded.
+  const sourceIds = [
+    ...new Set(brief.stories.flatMap((s) => parseJsonArray(s.relatedArticleIds))),
+  ];
+  const sourceRows = sourceIds.length
+    ? await prisma.article.findMany({ where: { id: { in: sourceIds } } })
+    : [];
+  const sourcesById = new Map(sourceRows.map((row) => [row.id, toBriefSourceDTO(row)]));
+
   return NextResponse.json({
     brief: {
       id: brief.id,
@@ -30,7 +40,14 @@ export async function GET(req: NextRequest) {
       title: brief.title,
       bluf: brief.bluf,
       source: brief.source,
-      stories: brief.stories.map(toBriefStoryDTO),
+      stories: brief.stories.map((story) =>
+        toBriefStoryDTO(
+          story,
+          parseJsonArray(story.relatedArticleIds)
+            .map((id) => sourcesById.get(id))
+            .filter((s): s is NonNullable<typeof s> => Boolean(s)),
+        ),
+      ),
     },
   });
 }
@@ -58,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const result = await generateBrief({ date, maxStories: body.maxStories });
+  const result = await generateBrief({ date, maxStories: body.maxStories, minSources: 4 });
   return NextResponse.json({
     mode: "generated",
     date: result.date,

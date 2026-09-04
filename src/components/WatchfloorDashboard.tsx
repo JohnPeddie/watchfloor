@@ -14,7 +14,7 @@ import { HelpButton } from "@/components/HelpButton";
 import { MinimisedPane, PaneSizeButton } from "@/components/PaneChrome";
 import { Icon } from "@/components/Icon";
 import { useIsCompact, useIsTablet } from "@/lib/use-media";
-import { useCollapsingHeader } from "@/lib/use-collapsing-header";
+import { buildSourceWeb } from "@/lib/source-web";
 import type { MarketQuote } from "@/lib/markets";
 import type {
   ArticleDTO,
@@ -51,7 +51,7 @@ export function WatchfloorDashboard() {
   const [query, setQuery] = useState("");
   const [selectedStory, setSelectedStory] = useState<BriefStoryDTO | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<ArticleDTO | null>(null);
-  const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; altitude?: number } | null>(null);
   const [ingesting, setIngesting] = useState(false);
   const [showImagery, setShowImagery] = useState(true);
   const [showBoundaries, setShowBoundaries] = useState(true);
@@ -60,6 +60,7 @@ export function WatchfloorDashboard() {
   // Collapsed panes on tablet and desktop; full-bleed pane on a phone.
   const [minimised, setMinimised] = useState({ map: false, traffic: false });
   const [immersive, setImmersive] = useState(false);
+  const [detailMaximised, setDetailMaximised] = useState(false);
   const isCompact = useIsCompact();
   const isTablet = useIsTablet();
 
@@ -106,7 +107,31 @@ export function WatchfloorDashboard() {
     return () => clearTimeout(id);
   }, [loadFiltered, query]);
 
-  const pins: GlobePin[] = useMemo(() => {
+  const relatedArticles = useMemo(() => {
+    if (!selectedStory) return [];
+    const ids = new Set(
+      selectedStory.sources.length > 0
+        ? selectedStory.sources.map((s) => s.id)
+        : selectedStory.relatedArticleIds,
+    );
+    if (ids.size === 0) return [];
+    return allArticles.filter((a) => ids.has(a.id));
+  }, [selectedStory, allArticles]);
+
+  /**
+   * Selected brief item: one hub at the subject, then a spoke per source so
+   * the globe shows both where the story is and where the reporting came from.
+   */
+  const sourceWeb = useMemo(
+    () => (selectedStory ? buildSourceWeb(selectedStory) : null),
+    [selectedStory],
+  );
+
+  const globePins: GlobePin[] = useMemo(() => {
+    if (sourceWeb && sourceWeb.links.length > 0) {
+      return sourceWeb.pins;
+    }
+
     const storyPins: GlobePin[] =
       brief?.stories
         .filter((s) => s.lat != null && s.lng != null)
@@ -135,97 +160,9 @@ export function WatchfloorDashboard() {
       }));
 
     return [...storyPins, ...articlePins];
-  }, [brief, articles]);
+  }, [brief, articles, sourceWeb]);
 
-  const relatedArticles = useMemo(() => {
-    if (!selectedStory) return [];
-    if (selectedStory.relatedArticleIds.length > 0) {
-      return allArticles.filter((a) => selectedStory.relatedArticleIds.includes(a.id));
-    }
-    const place = selectedStory.placeLabel?.toLowerCase();
-    const words = selectedStory.headline
-      .toLowerCase()
-      .split(/\W+/)
-      .filter((w) => w.length > 4);
-    const storyTags = new Set(selectedStory.tags);
-    return allArticles
-      .map((a) => {
-        let score = 0;
-        if (place && a.placeLabel?.toLowerCase() === place) score += 5;
-        const hay = `${a.title} ${a.summary ?? ""}`.toLowerCase();
-        score += words.filter((w) => hay.includes(w)).length * 2;
-        score += a.tags.filter((t) => storyTags.has(t)).length;
-        return { a, score };
-      })
-      .filter((x) => x.score >= 3)
-      .sort((x, y) => y.score - x.score)
-      .slice(0, 6)
-      .map((x) => x.a);
-  }, [selectedStory, allArticles]);
-
-  /**
-   * The globe shows how a story was put together: a connector runs from the
-   * story's location to each report behind it. Sources the current filter
-   * excluded are added back as pins, otherwise a connector would end nowhere.
-   */
-  const globePins: GlobePin[] = useMemo(() => {
-    const sourceIds = new Set(relatedArticles.map((a) => a.id));
-    const marked = pins.map((pin) =>
-      pin.kind === "article" && sourceIds.has(pin.id.slice("article:".length))
-        ? { ...pin, sourcing: true }
-        : pin,
-    );
-
-    const plotted = new Set(marked.map((p) => p.id));
-    const missing: GlobePin[] = relatedArticles
-      .filter((a) => a.lat != null && a.lng != null && !plotted.has(`article:${a.id}`))
-      .map((a) => ({
-        id: `article:${a.id}`,
-        kind: "article",
-        label: a.title,
-        lat: a.lat as number,
-        lng: a.lng as number,
-        placeLabel: a.placeLabel,
-        precedence: a.precedence,
-        imageUrl: a.imageUrl,
-        sourcing: true,
-      }));
-
-    return [...marked, ...missing];
-  }, [pins, relatedArticles]);
-
-  const globeLinks: GlobeLink[] = useMemo(() => {
-    const story = selectedStory;
-    if (!story || story.lat == null || story.lng == null) return [];
-    const originLat = story.lat;
-    const originLng = story.lng;
-
-    // Sources sharing a place would stack identical arcs, so connect each
-    // distinct location once. A source at the story's own location has nothing
-    // to connect to.
-    const seen = new Set<string>();
-    const links: GlobeLink[] = [];
-
-    for (const article of relatedArticles) {
-      const { lat, lng } = article;
-      if (lat == null || lng == null) continue;
-      if (Math.abs(lat - originLat) <= 0.05 && Math.abs(lng - originLng) <= 0.05) continue;
-
-      const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      links.push({
-        id: `link:${story.id}:${key}`,
-        startLat: originLat,
-        startLng: originLng,
-        endLat: lat,
-        endLng: lng,
-      });
-    }
-
-    return links;
-  }, [selectedStory, relatedArticles]);
+  const globeLinks: GlobeLink[] = sourceWeb?.links ?? [];
 
   const feedStatus = useMemo(() => {
     const counts = new Map<string, number>();
@@ -246,33 +183,44 @@ export function WatchfloorDashboard() {
       ? `story:${selectedStory.id}`
       : null;
 
-  function flyTo(lat: number | null | undefined, lng: number | null | undefined) {
+  const reading = Boolean(selectedStory || selectedArticle);
+
+  function flyTo(
+    lat: number | null | undefined,
+    lng: number | null | undefined,
+    altitude = 1.5,
+  ) {
     if (lat == null || lng == null) return;
-    setFocus({ lat, lng });
+    setFocus({ lat, lng, altitude });
+  }
+
+  function closeDetail() {
+    setSelectedStory(null);
+    setSelectedArticle(null);
+    setDetailMaximised(false);
   }
 
   /**
-   * The detail sheet lives over the globe, so opening a report has to make the
-   * globe visible: bring its pane forward on a phone, and undo a minimise
-   * anywhere else. Otherwise the report would open somewhere off-screen.
+   * The assessment takes the reporting-stream slot so the globe stays on
+   * screen with the source web. The globe is restored if it had been minimised.
    */
-  function revealDetail() {
-    if (isCompact) setPane("map");
-    setMinimised((m) => (m.map ? { ...m, map: false } : m));
-  }
-
   function onSelectStory(story: BriefStoryDTO) {
     setSelectedStory(story);
     setSelectedArticle(null);
-    flyTo(story.lat, story.lng);
-    revealDetail();
+    setDetailMaximised(false);
+    const web = buildSourceWeb(story);
+    if (web.hub) flyTo(web.hub.lat, web.hub.lng, 2.35);
+    else flyTo(story.lat, story.lng, 2.35);
+    setMinimised((m) => (m.map ? { ...m, map: false } : m));
+    if (isCompact) setPane("map");
   }
 
   function onSelectArticle(article: ArticleDTO) {
     setSelectedArticle(article);
     setSelectedStory(null);
+    setDetailMaximised(false);
     flyTo(article.lat, article.lng);
-    revealDetail();
+    setMinimised((m) => (m.map ? { ...m, map: false } : m));
   }
 
   function onSelectPin(pin: GlobePin) {
@@ -281,8 +229,9 @@ export function WatchfloorDashboard() {
       if (story) onSelectStory(story);
       return;
     }
-    const id = pin.id.replace("article:", "");
-    const article = articles.find((a) => a.id === id) ?? allArticles.find((a) => a.id === id);
+    const articleId = pin.articleId ?? pin.id.replace(/^article:/, "").replace(/^source:[^:]+:/, "");
+    const article =
+      articles.find((a) => a.id === articleId) ?? allArticles.find((a) => a.id === articleId);
     if (article) onSelectArticle(article);
   }
 
@@ -303,15 +252,8 @@ export function WatchfloorDashboard() {
   const plottedImages = globePins.filter((p) => p.imageUrl).length;
   const globeCaption =
     globeLinks.length > 0
-      ? `${relatedArticles.length} sources · ${globeLinks.length} linked location${
-          globeLinks.length === 1 ? "" : "s"
-        }`
+      ? `${globeLinks.length} sources feeding ${selectedStory?.placeLabel ?? "this item"}`
       : `${globePins.length} contacts · ${plottedImages} with imagery · live day/night`;
-
-  const { headerRef, hostRef, offset, hidden: headerHidden } = useCollapsingHeader(
-    isCompact,
-    pane,
-  );
 
   /** A column child either shares the space or shrinks to its own height. */
   const fill = (collapsed: boolean) =>
@@ -326,7 +268,7 @@ export function WatchfloorDashboard() {
   );
 
   const trafficPane =
-    minimised.traffic && !isCompact ? (
+    minimised.traffic && !isCompact && !reading ? (
       <MinimisedPane
         title="Reporting stream"
         detail={`${matched} items`}
@@ -424,22 +366,26 @@ export function WatchfloorDashboard() {
           focus={focus}
           selectedId={selectedPinId}
           onSelectPin={onSelectPin}
-          showImagery={showImagery}
+          showImagery={showImagery && globeLinks.length === 0}
           showBoundaries={showBoundaries}
-        />
-
-        <DetailSheet
-          story={selectedArticle ? null : selectedStory}
-          article={selectedArticle}
-          relatedArticles={selectedArticle ? [] : relatedArticles}
-          onClose={() => {
-            setSelectedStory(null);
-            setSelectedArticle(null);
-          }}
-          onOpenArticle={onSelectArticle}
         />
       </section>
     );
+
+  const reader = (
+    <DetailSheet
+      variant="pane"
+      story={selectedArticle ? null : selectedStory}
+      article={selectedArticle}
+      relatedArticles={selectedArticle ? [] : relatedArticles}
+      onClose={closeDetail}
+      onOpenArticle={onSelectArticle}
+      maximised={detailMaximised}
+      onToggleMaximise={() => setDetailMaximised((v) => !v)}
+    />
+  );
+
+  const belowGlobe = reading ? reader : trafficPane;
 
   const insightPane = (
     <InsightPane
@@ -460,6 +406,19 @@ export function WatchfloorDashboard() {
     insight: insightPane,
   };
 
+  const middle = (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
+      {reading && detailMaximised ? (
+        <div className="min-h-0 flex-1">{reader}</div>
+      ) : (
+        <>
+          <div className={fill(minimised.map)}>{mapPane}</div>
+          <div className={fill(minimised.traffic && !reading)}>{belowGlobe}</div>
+        </>
+      )}
+    </div>
+  );
+
   /**
    * Each column is its own flex stack rather than a shared grid, so collapsing
    * one pane hands its space to the pane above or below it and leaves the
@@ -467,28 +426,32 @@ export function WatchfloorDashboard() {
    */
   let layout: React.ReactNode;
   if (isCompact) {
-    layout = <div className="min-h-0 flex-1">{panesById[pane]}</div>;
+    layout = reading ? (
+      detailMaximised ? (
+        <div className="min-h-0 flex-1">{reader}</div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="min-h-0 flex-[1.2]">{mapPane}</div>
+          <div className="min-h-0 flex-1">{reader}</div>
+        </div>
+      )
+    ) : (
+      <div className="min-h-0 flex-1">{panesById[pane]}</div>
+    );
   } else if (isTablet) {
     layout = (
       <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
-        <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
-          <div className={fill(false)}>{briefPane}</div>
-          <div className={fill(minimised.traffic)}>{trafficPane}</div>
+        <div className="flex min-h-0 w-[min(42%,400px)] shrink-0 flex-col">
+          {briefPane}
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
-          <div className={fill(minimised.map)}>{mapPane}</div>
-          <div className={fill(false)}>{insightPane}</div>
-        </div>
+        {middle}
       </div>
     );
   } else {
     layout = (
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 w-[320px] shrink-0">{briefPane}</div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className={fill(minimised.map)}>{mapPane}</div>
-          <div className={fill(minimised.traffic)}>{trafficPane}</div>
-        </div>
+        {middle}
         <div className="min-h-0 w-[336px] shrink-0">{insightPane}</div>
       </div>
     );
@@ -497,12 +460,7 @@ export function WatchfloorDashboard() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       {!immersive && (
-        <div
-          ref={headerRef}
-          className="shrink-0 transition-[margin] duration-200 ease-out"
-          style={{ marginTop: offset }}
-          inert={headerHidden}
-        >
+        <div className="shrink-0">
           <AppBar
             query={query}
             onQueryChange={setQuery}
@@ -517,7 +475,7 @@ export function WatchfloorDashboard() {
         </div>
       )}
 
-      <div ref={hostRef} className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         {!immersive && (
           <NavRail activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
         )}
@@ -527,7 +485,7 @@ export function WatchfloorDashboard() {
         </main>
       </div>
 
-      {!immersive && (
+      {!immersive && !reading && (
         <BottomNav
           active={pane}
           onChange={setPane}

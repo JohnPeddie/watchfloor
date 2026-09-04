@@ -13,7 +13,7 @@ export const HELP: Record<string, HelpTopic> = {
   brief: {
     title: "Daily brief",
     body:
-      "The day's reporting reduced to a handful of stories. Articles covering the same event are grouped together, and each item is written from that group rather than from a single outlet. Selecting an item shows the assessment and the reports behind it, and draws connectors on the globe to where those reports are located.",
+      "The day's reporting reduced to a handful of stories. An item only appears when at least four reports are talking about the same event. Items are ordered by precedence. Selecting one shows the assessment, the reports behind it, and a source web on the globe.",
   },
   stream: {
     title: "Reporting stream",
@@ -23,7 +23,7 @@ export const HELP: Record<string, HelpTopic> = {
   globe: {
     title: "Geospatial plot",
     body:
-      "Where the reporting is happening. Day and night track real time, so the terminator and the city lights show the actual conditions at each location. Markers with imagery come from the articles themselves. Selecting a brief item draws a line from the story to each distinct location its sources come from.",
+      "Where the reporting is happening. Day and night track real time. Selecting a brief item plants a marker at the story's subject and draws a spoke from every source toward it — the outlet's desk when the article is about the same place, or the article's own location when the chatter is elsewhere. The assessment itself replaces the reporting stream, so the globe stays in view.",
   },
   energy: {
     title: "Energy",

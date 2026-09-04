@@ -12,6 +12,16 @@ type DetailSheetProps = {
   relatedArticles: ArticleDTO[];
   onClose: () => void;
   onOpenArticle: (article: ArticleDTO) => void;
+  /**
+   * overlay — bottom sheet over the globe (desktop).
+   * pane — fills its layout slot. Maximise expands it across the middle column.
+   * screen — covers the viewport (phone reading).
+   */
+  variant?: "overlay" | "pane" | "screen";
+  onShowGlobe?: () => void;
+  /** When set, maximise is controlled by the layout (covers globe + stream). */
+  maximised?: boolean;
+  onToggleMaximise?: () => void;
 };
 
 export function DetailSheet({
@@ -20,9 +30,20 @@ export function DetailSheet({
   relatedArticles,
   onClose,
   onOpenArticle,
+  variant = "overlay",
+  onShowGlobe,
+  maximised: maximisedProp,
+  onToggleMaximise,
 }: DetailSheetProps) {
   const [activeImage, setActiveImage] = useState(0);
-  const [maximised, setMaximised] = useState(false);
+  const [internalMax, setInternalMax] = useState(false);
+  const controlled = typeof maximisedProp === "boolean";
+  const maximised = controlled ? maximisedProp : internalMax;
+
+  function toggleMaximise() {
+    if (onToggleMaximise) onToggleMaximise();
+    else setInternalMax((v) => !v);
+  }
 
   useEffect(() => {
     setActiveImage(0);
@@ -31,13 +52,12 @@ export function DetailSheet({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      // Escape backs out one step: leave full screen first, then close.
-      if (maximised) setMaximised(false);
+      if (maximised) toggleMaximise();
       else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, maximised]);
+  }, [onClose, maximised, onToggleMaximise]);
 
   if (!story && !article) return null;
 
@@ -54,20 +74,30 @@ export function DetailSheet({
   const tags = article?.tags ?? story?.tags ?? [];
   const precedence = article?.precedence ?? story?.precedence ?? "ROUTINE";
 
+  const sources = story?.sources ?? [];
+  const related = relatedArticles.length > 0 ? relatedArticles : [];
+  const filling = variant === "pane" || variant === "screen" || maximised;
+
+  const shellClass =
+    variant === "screen"
+      ? "fixed inset-0 z-[110] flex flex-col overflow-hidden"
+      : variant === "pane"
+        ? "md-pane flex h-full min-h-0 flex-col overflow-hidden"
+        : maximised
+          ? "md-sheet fixed inset-0 z-[110] flex flex-col overflow-hidden"
+          : "md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]";
+
   return (
     <div
-      /* Docked: near full-height on phones so the report is readable, and a
-         bottom sheet over the globe from `lg` up where the map stays useful
-         alongside. Maximised: fixed to the viewport so it escapes the pane
-         that would otherwise clip it. */
-      className={
-        maximised
-          ? "md-sheet fixed inset-0 z-[110] flex flex-col overflow-hidden"
-          : "md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]"
-      }
-      style={{ background: "var(--md-container)", boxShadow: "var(--elev-5)" }}
+      className={shellClass}
+      style={{
+        background: "var(--md-container)",
+        boxShadow: variant === "pane" ? "var(--elev-2)" : "var(--elev-5)",
+        paddingTop: variant === "screen" ? "env(safe-area-inset-top)" : undefined,
+        paddingBottom: variant === "screen" ? "env(safe-area-inset-bottom)" : undefined,
+      }}
       role="dialog"
-      aria-modal={maximised}
+      aria-modal={variant !== "overlay" || maximised}
       aria-label="Report detail"
     >
       <div
@@ -100,15 +130,28 @@ export function DetailSheet({
           )}
         </div>
         <div className="flex shrink-0 items-center">
-          <button
-            type="button"
-            className="md-icon-btn"
-            onClick={() => setMaximised((v) => !v)}
-            aria-label={maximised ? "Exit full screen" : "Open full screen"}
-            title={maximised ? "Exit full screen" : "Open full screen"}
-          >
-            <Icon name={maximised ? "fullscreen_exit" : "fullscreen"} size={19} />
-          </button>
+          {onShowGlobe && story && (
+            <button
+              type="button"
+              className="md-icon-btn"
+              onClick={onShowGlobe}
+              aria-label="Show sourcing on the globe"
+              title="Show sourcing on the globe"
+            >
+              <Icon name="public" size={19} />
+            </button>
+          )}
+          {variant !== "screen" && (
+            <button
+              type="button"
+              className="md-icon-btn"
+              onClick={toggleMaximise}
+              aria-label={maximised ? "Restore beside the globe" : "Expand across the middle"}
+              title={maximised ? "Restore beside the globe" : "Expand across the middle"}
+            >
+              <Icon name={maximised ? "fullscreen_exit" : "fullscreen"} size={19} />
+            </button>
+          )}
           <button type="button" className="md-icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="close" size={20} />
           </button>
@@ -120,8 +163,8 @@ export function DetailSheet({
           /* Full screen earns the two-column split sooner, and caps the line
              length so the assessment stays readable on a wide monitor. */
           className={
-            maximised
-              ? "mx-auto grid max-w-[1180px] gap-5 p-4 md:grid-cols-[minmax(0,380px)_minmax(0,1fr)] sm:p-6"
+            filling
+              ? "mx-auto grid max-w-[1180px] gap-5 p-4 sm:p-6 md:grid-cols-[minmax(0,380px)_minmax(0,1fr)]"
               : "grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]"
           }
         >
@@ -238,51 +281,77 @@ export function DetailSheet({
               </>
             )}
 
-            {relatedArticles.length > 0 && (
+            {(related.length > 0 || sources.length > 0) && (
               <section className="space-y-2">
-                <h3 className="md-label">Related reporting</h3>
+                <h3 className="md-label">
+                  {`Sources (${Math.max(related.length, sources.length)})`}
+                </h3>
                 <div className="space-y-1">
-                  {relatedArticles.map((a) => (
-                    <div
-                      key={a.id}
-                      className="md-state md-list-item items-center"
-                      style={{ background: "var(--md-container-low)" }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onOpenArticle(a)}
-                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                      >
+                  {related.length > 0
+                    ? related.map((a) => (
                         <div
-                          className="h-10 w-14 shrink-0 overflow-hidden rounded-lg"
-                          style={{ background: "var(--md-container-high)" }}
+                          key={a.id}
+                          className="md-state md-list-item items-center"
+                          style={{ background: "var(--md-container-low)" }}
                         >
-                          {a.imageUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={a.imageUrl}
-                              alt=""
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                            />
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => onOpenArticle(a)}
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          >
+                            <div
+                              className="h-10 w-14 shrink-0 overflow-hidden rounded-lg"
+                              style={{ background: "var(--md-container-high)" }}
+                            >
+                              {a.imageUrl && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={a.imageUrl}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="md-title line-clamp-1 text-[13px]">{a.title}</div>
+                              <div className="md-label-sm md-mono">{a.sourceName}</div>
+                            </div>
+                          </button>
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="md-icon-btn shrink-0"
+                            aria-label="Open original"
+                          >
+                            <Icon name="open" size={17} />
+                          </a>
                         </div>
-                        <div className="min-w-0">
-                          <div className="md-title line-clamp-1 text-[13px]">{a.title}</div>
-                          <div className="md-label-sm md-mono">{a.sourceName}</div>
+                      ))
+                    : sources.map((a) => (
+                        <div
+                          key={a.id}
+                          className="md-list-item items-center"
+                          style={{ background: "var(--md-container-low)" }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="md-title line-clamp-1 text-[13px]">{a.title}</div>
+                            <div className="md-label-sm md-mono">
+                              {`${a.sourceName}${a.placeLabel ? ` · ${a.placeLabel}` : ""}`}
+                            </div>
+                          </div>
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="md-icon-btn shrink-0"
+                            aria-label="Open original"
+                          >
+                            <Icon name="open" size={17} />
+                          </a>
                         </div>
-                      </button>
-                      <a
-                        href={a.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="md-icon-btn shrink-0"
-                        aria-label="Open original"
-                      >
-                        <Icon name="open" size={17} />
-                      </a>
-                    </div>
-                  ))}
+                      ))}
                 </div>
               </section>
             )}

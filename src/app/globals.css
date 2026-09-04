@@ -135,6 +135,7 @@ body {
   font-size: 14px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
 ::-webkit-scrollbar {
@@ -599,6 +600,12 @@ body {
 @media (hover: none) {
   .globe-marker:hover {
     transform: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .md-sheet {
+    animation: none;
   }
 }
 

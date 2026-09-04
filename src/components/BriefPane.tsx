@@ -100,12 +100,17 @@ export function BriefPane({ brief, selectedStoryId, onSelectStory }: BriefPanePr
 
               <div className="flex items-center justify-between gap-2">
                 <TagChips tags={story.tags} max={3} />
-                {story.placeLabel && (
-                  <span className="md-label-sm flex items-center gap-1 whitespace-nowrap">
-                    <Icon name="place" size={13} />
-                    {story.placeLabel}
+                <span className="md-label-sm flex items-center gap-2 whitespace-nowrap">
+                  {story.placeLabel && (
+                    <span className="flex items-center gap-1">
+                      <Icon name="place" size={13} />
+                      {story.placeLabel}
+                    </span>
+                  )}
+                  <span className="md-mono">
+                    {`${Math.max(story.sources.length, story.relatedArticleIds.length) || 0} src`}
                   </span>
-                )}
+                </span>
               </div>
             </button>
           );

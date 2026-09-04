@@ -23,6 +23,28 @@ export type ArticleDTO = {
   placeLabel: string | null;
 };
 
+/**
+ * A report a brief item was built from, resolved server-side.
+ *
+ * Sent with the brief rather than looked up client-side, because the client
+ * only holds a page of articles and a story's sources are often older than
+ * that page reaches.
+ */
+export type BriefSourceDTO = {
+  id: string;
+  title: string;
+  url: string;
+  sourceName: string;
+  sourceCode: string;
+  sourceGrade: string;
+  publishedAt: string | null;
+  imageUrl: string | null;
+  placeLabel: string | null;
+  lat: number | null;
+  lng: number | null;
+  precedence: Precedence;
+};
+
 export type BriefStoryDTO = {
   id: string;
   headline: string;
@@ -34,6 +56,7 @@ export type BriefStoryDTO = {
   lat: number | null;
   lng: number | null;
   relatedArticleIds: string[];
+  sources: BriefSourceDTO[];
   imageUrl: string | null;
   sortOrder: number;
 };
@@ -66,24 +89,30 @@ export type SummarizerStatus = {
 
 export type GlobePin = {
   id: string;
-  kind: "story" | "article";
+  kind: "story" | "article" | "source";
   label: string;
   lat: number;
   lng: number;
   placeLabel: string | null;
   precedence: Precedence;
   imageUrl: string | null;
-  /** Set when this pin is one of the reports behind the selected story. */
-  sourcing?: boolean;
+  /** The article to open when the pin is clicked, for source pins. */
+  articleId?: string;
+  /** Marks the subject location of the selected story. */
+  focus?: boolean;
 };
 
-/** A line drawn from a selected story to one of the reports it was built from. */
+/**
+ * One strand of the source web: a report's origin in toward the subject of
+ * the selected brief item.
+ */
 export type GlobeLink = {
   id: string;
   startLat: number;
   startLng: number;
   endLat: number;
   endLng: number;
+  label: string;
 };
 
 export function parseJsonArray(value: string | null | undefined): string[] {
@@ -149,19 +178,22 @@ export function toArticleDTO(article: {
   };
 }
 
-export function toBriefStoryDTO(story: {
-  id: string;
-  headline: string;
-  body: string;
-  tags: string;
-  precedence: string;
-  placeLabel: string | null;
-  lat: number | null;
-  lng: number | null;
-  relatedArticleIds: string;
-  imageUrl: string | null;
-  sortOrder: number;
-}): BriefStoryDTO {
+export function toBriefStoryDTO(
+  story: {
+    id: string;
+    headline: string;
+    body: string;
+    tags: string;
+    precedence: string;
+    placeLabel: string | null;
+    lat: number | null;
+    lng: number | null;
+    relatedArticleIds: string;
+    imageUrl: string | null;
+    sortOrder: number;
+  },
+  sources: BriefSourceDTO[] = [],
+): BriefStoryDTO {
   return {
     id: story.id,
     headline: story.headline,
@@ -173,7 +205,38 @@ export function toBriefStoryDTO(story: {
     lat: story.lat,
     lng: story.lng,
     relatedArticleIds: parseJsonArray(story.relatedArticleIds),
+    sources,
     imageUrl: story.imageUrl,
     sortOrder: story.sortOrder,
+  };
+}
+
+export function toBriefSourceDTO(article: {
+  id: string;
+  title: string;
+  url: string;
+  sourceName: string;
+  sourceCode: string;
+  sourceGrade: string;
+  publishedAt: Date | null;
+  imageUrl: string | null;
+  placeLabel: string | null;
+  lat: number | null;
+  lng: number | null;
+  precedence: string;
+}): BriefSourceDTO {
+  return {
+    id: article.id,
+    title: article.title,
+    url: article.url,
+    sourceName: article.sourceName,
+    sourceCode: article.sourceCode,
+    sourceGrade: article.sourceGrade,
+    publishedAt: article.publishedAt?.toISOString() ?? null,
+    imageUrl: article.imageUrl,
+    placeLabel: article.placeLabel,
+    lat: article.lat,
+    lng: article.lng,
+    precedence: article.precedence as Precedence,
   };
 }

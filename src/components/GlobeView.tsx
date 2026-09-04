@@ -168,33 +168,36 @@ export function GlobeView({
   }, []);
 
   const imagePins = useMemo(
-    () => (showImagery ? pins.filter((p) => Boolean(p.imageUrl)) : []),
-    [pins, showImagery],
+    () =>
+      links.length > 0
+        ? []
+        : showImagery
+          ? pins.filter((p) => Boolean(p.imageUrl))
+          : [],
+    [pins, showImagery, links.length],
   );
 
   const points = useMemo(
     () =>
       pins
-        .filter((p) => !showImagery || !p.imageUrl)
+        .filter((p) => links.length > 0 || !showImagery || !p.imageUrl)
         .map((p) => ({
           ...p,
-          radius:
-            p.id === selectedId ? 0.55 : p.sourcing ? 0.34 : p.kind === "story" ? 0.4 : 0.22,
-          color:
-            p.id === selectedId
-              ? "#ffb77c"
-              : p.sourcing
-                ? "#e0a273"
+          radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.4 : 0.22,
+          color: p.focus
+            ? "#ffb77c"
+            : p.kind === "source"
+              ? "#7fd6c9"
+              : p.id === selectedId
+                ? "#ffb77c"
                 : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
         })),
-    [pins, selectedId, showImagery],
+    [pins, selectedId, showImagery, links.length],
   );
 
   /**
-   * With a story selected the globe shows where its reporting came from, so
-   * the ambient home arcs step aside rather than compete with the connectors.
-   * Connectors hug the surface and stay hairline-thin so a dense cluster still
-   * reads as separate threads.
+   * A selected story's source web replaces the ambient home arcs. Dashes
+   * travel from each source toward the hub — reporting arriving at the event.
    */
   const arcs = useMemo<ArcDatum[]>(() => {
     if (links.length > 0) {
@@ -203,12 +206,12 @@ export function GlobeView({
         startLng: link.startLng,
         endLat: link.endLat,
         endLng: link.endLng,
-        color: ["rgba(255,183,124,0.9)", "rgba(255,183,124,0.22)"],
-        stroke: 0.12,
-        dashLength: 0.42,
-        dashGap: 0.14,
-        dashAnimateTime: 2400,
-        altitudeScale: 0.16,
+        color: ["rgba(127,214,201,0.9)", "rgba(255,183,124,0.95)"],
+        stroke: 0.55,
+        dashLength: 0.7,
+        dashGap: 0.18,
+        dashAnimateTime: 2800,
+        altitudeScale: 0.38,
       }));
     }
 
@@ -234,7 +237,7 @@ export function GlobeView({
   const rings = useMemo(
     () =>
       pins
-        .filter((p) => p.precedence === "FLASH" || p.id === selectedId)
+        .filter((p) => p.focus || p.precedence === "FLASH" || p.id === selectedId)
         .map((p) => ({ lat: p.lat, lng: p.lng })),
     [pins, selectedId],
   );
@@ -242,16 +245,22 @@ export function GlobeView({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let frame = 0;
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      setSize({
-        w: Math.floor(entry.contentRect.width),
-        h: Math.floor(entry.contentRect.height),
+      const w = Math.floor(entry.contentRect.width);
+      const h = Math.floor(entry.contentRect.height);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        setSize((prev) => (Math.abs(prev.w - w) < 8 && Math.abs(prev.h - h) < 8 ? prev : { w, h }));
       });
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -339,13 +348,17 @@ export function GlobeView({
             return el;
           }}
           arcsData={arcs}
+          arcStartLat="startLat"
+          arcStartLng="startLng"
+          arcEndLat="endLat"
+          arcEndLng="endLng"
           arcColor="color"
           arcAltitudeAutoScale="altitudeScale"
           arcStroke="stroke"
           arcDashLength="dashLength"
           arcDashGap="dashGap"
           arcDashAnimateTime="dashAnimateTime"
-          arcsTransitionDuration={300}
+          arcsTransitionDuration={0}
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"

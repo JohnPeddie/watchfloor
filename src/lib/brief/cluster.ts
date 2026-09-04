@@ -95,7 +95,17 @@ function sharedRareCount(a: Set<string>, b: Set<string>, rare: Set<string>): num
 
 type WorkingCluster = {
   members: ClusterCandidate[];
-  tokens: Set<string>;
+  /** Tokens from the first article only — a growing union would match everything. */
+  leadTokens: Set<string>;
+};
+
+export type ClusterOptions = {
+  maxClusters?: number;
+  minOverlap?: number;
+  /** Reports a cluster needs before it earns a place in the brief. */
+  minSources?: number;
+  /** Distinct outlets required, so one newsroom's run of stories is not mistaken for corroboration. */
+  minOutlets?: number;
 };
 
 /**
@@ -108,7 +118,12 @@ type WorkingCluster = {
  */
 export function clusterArticles(
   candidates: ClusterCandidate[],
-  { maxClusters = 7, minOverlap = 0.42 }: { maxClusters?: number; minOverlap?: number } = {},
+  {
+    maxClusters = 7,
+    minOverlap = 0.38,
+    minSources = 4,
+    minOutlets = 1,
+  }: ClusterOptions = {},
 ): StoryCluster[] {
   const ordered = [...candidates].sort((a, b) => {
     const rank = PRECEDENCE_RANK[b.precedence] - PRECEDENCE_RANK[a.precedence];
@@ -124,11 +139,11 @@ export function clusterArticles(
     let placed = false;
 
     for (const cluster of working) {
-      const sim = overlap(tokens, cluster.tokens);
+      const sim = overlap(tokens, cluster.leadTokens);
 
-      // Plain word overlap drops off as a cluster absorbs more headlines, so a
-      // weaker overlap still counts when the shared words are distinctive.
-      const named = sharedRareCount(tokens, cluster.tokens, rare);
+      // Plain word overlap drops off as headlines vary, so a weaker overlap
+      // still counts when the shared words are distinctive.
+      const named = sharedRareCount(tokens, cluster.leadTokens, rare);
       if (sim < minOverlap && !(named >= 2 && sim >= minOverlap / 2)) continue;
 
       const samePlace = cluster.members.some(
@@ -140,18 +155,29 @@ export function clusterArticles(
       if (!samePlace && !sharedTag) continue;
 
       cluster.members.push(article);
-      for (const token of tokens) cluster.tokens.add(token);
       placed = true;
       break;
     }
 
-    if (!placed) working.push({ members: [article], tokens });
+    if (!placed) working.push({ members: [article], leadTokens: tokens });
   }
 
   return working
+    .filter(
+      (cluster) =>
+        cluster.members.length >= minSources &&
+        new Set(cluster.members.map((m) => m.sourceName)).size >= minOutlets,
+    )
     .map(toStoryCluster)
+    // Score decides which stories make the brief, then precedence decides the
+    // running order, as it would on a real watchfloor.
     .sort((a, b) => clusterScore(b) - clusterScore(a))
     .slice(0, maxClusters)
+    .sort(
+      (a, b) =>
+        PRECEDENCE_RANK[b.precedence] - PRECEDENCE_RANK[a.precedence] ||
+        clusterScore(b) - clusterScore(a),
+    )
     .map((cluster, index) => ({ ...cluster, key: `${index}:${cluster.key}` }));
 }
 
