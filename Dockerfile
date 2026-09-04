@@ -19,6 +19,9 @@ COPY package.json package-lock.json ./
 # postinstall runs `prisma generate`, which needs the schema present.
 COPY prisma ./prisma
 COPY prisma.config.ts ./
+# postinstall runs `prisma generate`, which reads prisma.config.ts and requires
+# DATABASE_URL. Placeholder only; Compose sets the real path at runtime.
+ENV DATABASE_URL="file:./build.db"
 RUN npm ci
 
 FROM node:22-bookworm-slim AS builder
