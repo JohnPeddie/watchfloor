@@ -21,7 +21,16 @@ services:
       DATABASE_URL: file:/app/data/watchfloor.db
     volumes:
       - watchfloor-data:/app/data
-    command: ["npx", "prisma", "db", "push", "--skip-generate"]
+    # Runs as root so it can create the SQLite file, then hands the volume to
+    # uid 1001 (the app user). Without this, migrate leaves the db root-owned
+    # and the app gets "attempt to write a readonly database".
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /app/data
+        npx prisma db push --skip-generate
+        chown -R 1001:1001 /app/data
     restart: "no"
 
   app:
