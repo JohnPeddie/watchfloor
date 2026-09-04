@@ -52,7 +52,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Bind all interfaces so the dashboard is reachable from the LAN, not just
 # from inside the container.
 ENV HOSTNAME=0.0.0.0
-ENV PORT=3000
+ENV PORT=3050
 ENV DATABASE_URL="file:/app/data/watchfloor.db"
 
 COPY --from=builder /app/public ./public
@@ -69,9 +69,9 @@ RUN groupadd --system --gid 1001 watchfloor \
     && chown -R watchfloor:watchfloor /app/data
 USER watchfloor
 
-EXPOSE 3000
+EXPOSE 3050
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://127.0.0.1:3050/api/health || exit 1
 
 CMD ["node", "server.js"]

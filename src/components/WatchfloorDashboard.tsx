@@ -10,8 +10,10 @@ import { BriefPane } from "@/components/BriefPane";
 import { TrafficPane } from "@/components/TrafficPane";
 import { InsightPane } from "@/components/InsightPane";
 import { DetailSheet } from "@/components/DetailSheet";
+import { HelpButton } from "@/components/HelpButton";
+import { MinimisedPane, PaneSizeButton } from "@/components/PaneChrome";
 import { Icon } from "@/components/Icon";
-import { useIsCompact } from "@/lib/use-media";
+import { useIsCompact, useIsTablet } from "@/lib/use-media";
 import { useCollapsingHeader } from "@/lib/use-collapsing-header";
 import type { MarketQuote } from "@/lib/markets";
 import type {
@@ -55,7 +57,16 @@ export function WatchfloorDashboard() {
   const [showBoundaries, setShowBoundaries] = useState(true);
   const [pane, setPane] = useState<PaneId>("brief");
   const [summarizer, setSummarizer] = useState<SummarizerStatus | null>(null);
+  // Collapsed panes on tablet and desktop; full-bleed pane on a phone.
+  const [minimised, setMinimised] = useState({ map: false, traffic: false });
+  const [immersive, setImmersive] = useState(false);
   const isCompact = useIsCompact();
+  const isTablet = useIsTablet();
+
+  // Full-bleed only makes sense while one pane owns the screen.
+  useEffect(() => {
+    if (!isCompact) setImmersive(false);
+  }, [isCompact]);
 
   const loadFiltered = useCallback(async () => {
     const params = new URLSearchParams({ limit: "150" });
@@ -240,10 +251,14 @@ export function WatchfloorDashboard() {
     setFocus({ lat, lng });
   }
 
-  // On compact layouts the detail sheet sits over the globe, so opening a
-  // report has to bring the map pane forward or the sheet would be off-screen.
+  /**
+   * The detail sheet lives over the globe, so opening a report has to make the
+   * globe visible: bring its pane forward on a phone, and undo a minimise
+   * anywhere else. Otherwise the report would open somewhere off-screen.
+   */
   function revealDetail() {
     if (isCompact) setPane("map");
+    setMinimised((m) => (m.map ? { ...m, map: false } : m));
   }
 
   function onSelectStory(story: BriefStoryDTO) {
@@ -298,172 +313,227 @@ export function WatchfloorDashboard() {
     pane,
   );
 
+  /** A column child either shares the space or shrinks to its own height. */
+  const fill = (collapsed: boolean) =>
+    collapsed ? "shrink-0" : "min-h-0 flex-1";
+
+  const briefPane = (
+    <BriefPane
+      brief={brief}
+      selectedStoryId={selectedStory?.id ?? null}
+      onSelectStory={onSelectStory}
+    />
+  );
+
+  const trafficPane =
+    minimised.traffic && !isCompact ? (
+      <MinimisedPane
+        title="Reporting stream"
+        detail={`${matched} items`}
+        onRestore={() => setMinimised((m) => ({ ...m, traffic: false }))}
+      />
+    ) : (
+      <TrafficPane
+        articles={articles}
+        matched={matched}
+        total={total}
+        selectedArticleId={selectedArticle?.id ?? null}
+        onSelectArticle={onSelectArticle}
+        activeTag={activeTag}
+        actions={
+          <PaneSizeButton
+            compact={isCompact}
+            active={immersive}
+            label="reporting stream"
+            onToggle={() =>
+              isCompact
+                ? setImmersive((v) => !v)
+                : setMinimised((m) => ({ ...m, traffic: true }))
+            }
+          />
+        }
+      />
+    );
+
+  const mapPane =
+    minimised.map && !isCompact ? (
+      <MinimisedPane
+        title="Geospatial plot"
+        detail={`${globePins.length} contacts`}
+        onRestore={() => setMinimised((m) => ({ ...m, map: false }))}
+      />
+    ) : (
+      <section className="md-pane relative h-full min-h-0 overflow-hidden">
+        <div
+          className="on-globe pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between p-3"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(11,14,17,0.92) 0%, rgba(11,14,17,0.66) 55%, rgba(11,14,17,0) 100%)",
+          }}
+        >
+          <div className="min-w-0">
+            <div className="md-title-lg">Geospatial plot</div>
+            <div className="md-label-sm truncate">{globeCaption}</div>
+          </div>
+          <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              className="md-chip md-chip-filter"
+              aria-pressed={showImagery}
+              onClick={() => setShowImagery((v) => !v)}
+            >
+              <Icon name="layers" size={13} />
+              <span className="hidden sm:inline">Imagery</span>
+            </button>
+            <button
+              type="button"
+              className="md-chip md-chip-filter"
+              aria-pressed={showBoundaries}
+              onClick={() => setShowBoundaries((v) => !v)}
+            >
+              <Icon name="public" size={13} />
+              <span className="hidden sm:inline">Borders</span>
+            </button>
+            {focus && (
+              <button
+                type="button"
+                className="md-chip md-chip-filter"
+                onClick={() => setFocus(null)}
+              >
+                <Icon name="public" size={13} />
+                <span className="hidden sm:inline">Reset view</span>
+              </button>
+            )}
+            <HelpButton topic="globe" />
+            <PaneSizeButton
+              compact={isCompact}
+              active={immersive}
+              label="globe"
+              onToggle={() =>
+                isCompact
+                  ? setImmersive((v) => !v)
+                  : setMinimised((m) => ({ ...m, map: true }))
+              }
+            />
+          </div>
+        </div>
+
+        <GlobeView
+          pins={globePins}
+          links={globeLinks}
+          focus={focus}
+          selectedId={selectedPinId}
+          onSelectPin={onSelectPin}
+          showImagery={showImagery}
+          showBoundaries={showBoundaries}
+        />
+
+        <DetailSheet
+          story={selectedArticle ? null : selectedStory}
+          article={selectedArticle}
+          relatedArticles={selectedArticle ? [] : relatedArticles}
+          onClose={() => {
+            setSelectedStory(null);
+            setSelectedArticle(null);
+          }}
+          onOpenArticle={onSelectArticle}
+        />
+      </section>
+    );
+
+  const insightPane = (
+    <InsightPane
+      markets={markets}
+      tagCounts={tagCounts}
+      activeTag={activeTag}
+      onSelectTag={setActiveTag}
+      precedenceCounts={precedenceCounts}
+      feedStatus={feedStatus}
+      summarizer={summarizer}
+    />
+  );
+
+  const panesById: Record<PaneId, React.ReactNode> = {
+    brief: briefPane,
+    map: mapPane,
+    traffic: trafficPane,
+    insight: insightPane,
+  };
+
   /**
-   * Below `md` only the selected pane is mounted, so the phone shows one thing
-   * at a time. From `md` up every pane is visible and CSS grid placement takes
-   * over: reporting on the left and the globe on the right for tablets, then a
-   * third analysis column on desktop.
+   * Each column is its own flex stack rather than a shared grid, so collapsing
+   * one pane hands its space to the pane above or below it and leaves the
+   * other column alone.
    */
-  function paneClass(id: PaneId, placement: string): string {
-    const visibility = pane === id ? "block" : "hidden";
-    return `min-h-0 ${visibility} md:block ${placement}`;
+  let layout: React.ReactNode;
+  if (isCompact) {
+    layout = <div className="min-h-0 flex-1">{panesById[pane]}</div>;
+  } else if (isTablet) {
+    layout = (
+      <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
+          <div className={fill(false)}>{briefPane}</div>
+          <div className={fill(minimised.traffic)}>{trafficPane}</div>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
+          <div className={fill(minimised.map)}>{mapPane}</div>
+          <div className={fill(false)}>{insightPane}</div>
+        </div>
+      </div>
+    );
+  } else {
+    layout = (
+      <div className="flex min-h-0 flex-1 gap-3">
+        <div className="min-h-0 w-[320px] shrink-0">{briefPane}</div>
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className={fill(minimised.map)}>{mapPane}</div>
+          <div className={fill(minimised.traffic)}>{trafficPane}</div>
+        </div>
+        <div className="min-h-0 w-[336px] shrink-0">{insightPane}</div>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <div
-        ref={headerRef}
-        className="shrink-0 transition-[margin] duration-200 ease-out"
-        style={{ marginTop: offset }}
-        inert={headerHidden}
-      >
-        <AppBar
-          query={query}
-          onQueryChange={setQuery}
-          onIngest={onIngest}
-          ingesting={ingesting}
-          lastIngestAt={lastIngestAt}
-          total={total}
-          flashCount={precedenceCounts.FLASH ?? 0}
-        />
+      {!immersive && (
+        <div
+          ref={headerRef}
+          className="shrink-0 transition-[margin] duration-200 ease-out"
+          style={{ marginTop: offset }}
+          inert={headerHidden}
+        >
+          <AppBar
+            query={query}
+            onQueryChange={setQuery}
+            onIngest={onIngest}
+            ingesting={ingesting}
+            lastIngestAt={lastIngestAt}
+            total={total}
+            flashCount={precedenceCounts.FLASH ?? 0}
+          />
 
-        <LaneChips activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
-      </div>
+          <LaneChips activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
+        </div>
+      )}
 
       <div ref={hostRef} className="flex min-h-0 flex-1">
-        <NavRail activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
+        {!immersive && (
+          <NavRail activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
+        )}
 
-        <main
-          className="grid min-h-0 flex-1 gap-2 p-2 sm:gap-3 sm:p-3 md:grid-cols-2 md:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,336px)]"
-        >
-          <div
-            className={paneClass(
-              "brief",
-              "md:col-start-1 md:row-start-1 xl:row-span-2 xl:row-start-1",
-            )}
-          >
-            <BriefPane
-              brief={brief}
-              selectedStoryId={selectedStory?.id ?? null}
-              onSelectStory={onSelectStory}
-            />
-          </div>
-
-          <div
-            className={paneClass(
-              "map",
-              "relative md:col-start-2 md:row-start-1 xl:col-start-2 xl:row-start-1",
-            )}
-          >
-            <section className="md-pane relative h-full min-h-0 overflow-hidden">
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between p-3"
-                style={{
-                  background:
-                    "linear-gradient(180deg, rgba(11,14,17,0.92) 0%, rgba(11,14,17,0.66) 55%, rgba(11,14,17,0) 100%)",
-                }}
-              >
-                <div className="min-w-0">
-                  <div className="md-title-lg">Geospatial plot</div>
-                  <div className="md-label-sm truncate">
-                    {globeCaption}
-                  </div>
-                </div>
-                <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    className="md-chip md-chip-filter"
-                    aria-pressed={showImagery}
-                    onClick={() => setShowImagery((v) => !v)}
-                  >
-                    <Icon name="layers" size={13} />
-                    <span className="hidden sm:inline">Imagery</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="md-chip md-chip-filter"
-                    aria-pressed={showBoundaries}
-                    onClick={() => setShowBoundaries((v) => !v)}
-                  >
-                    <Icon name="public" size={13} />
-                    <span className="hidden sm:inline">Borders</span>
-                  </button>
-                  {focus && (
-                    <button
-                      type="button"
-                      className="md-chip md-chip-filter"
-                      onClick={() => setFocus(null)}
-                    >
-                      <Icon name="public" size={13} />
-                      <span className="hidden sm:inline">Reset view</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <GlobeView
-                pins={globePins}
-                links={globeLinks}
-                focus={focus}
-                selectedId={selectedPinId}
-                onSelectPin={onSelectPin}
-                showImagery={showImagery}
-                showBoundaries={showBoundaries}
-              />
-
-              <DetailSheet
-                story={selectedArticle ? null : selectedStory}
-                article={selectedArticle}
-                relatedArticles={selectedArticle ? [] : relatedArticles}
-                onClose={() => {
-                  setSelectedStory(null);
-                  setSelectedArticle(null);
-                }}
-                onOpenArticle={onSelectArticle}
-              />
-            </section>
-          </div>
-
-          <div
-            className={paneClass(
-              "traffic",
-              "md:col-start-1 md:row-start-2 xl:col-start-2 xl:row-start-2",
-            )}
-          >
-            <TrafficPane
-              articles={articles}
-              matched={matched}
-              total={total}
-              selectedArticleId={selectedArticle?.id ?? null}
-              onSelectArticle={onSelectArticle}
-              activeTag={activeTag}
-            />
-          </div>
-
-          <div
-            className={paneClass(
-              "insight",
-              "md:col-start-2 md:row-start-2 xl:col-start-3 xl:row-span-2 xl:row-start-1",
-            )}
-          >
-            <InsightPane
-              markets={markets}
-              tagCounts={tagCounts}
-              activeTag={activeTag}
-              onSelectTag={setActiveTag}
-              precedenceCounts={precedenceCounts}
-              feedStatus={feedStatus}
-              summarizer={summarizer}
-            />
-          </div>
+        <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+          {layout}
         </main>
       </div>
 
-      <BottomNav
-        active={pane}
-        onChange={setPane}
-        flashCount={precedenceCounts.FLASH ?? 0}
-      />
+      {!immersive && (
+        <BottomNav
+          active={pane}
+          onChange={setPane}
+          flashCount={precedenceCounts.FLASH ?? 0}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { GradeChip, PrecedenceChip, TagChips } from "@/components/Chips";
+import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
 import { dtgShort } from "@/lib/dtg";
 import type { ArticleDTO } from "@/lib/serializers";
@@ -12,6 +14,8 @@ type TrafficPaneProps = {
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleDTO) => void;
   activeTag: string | null;
+  /** Header controls supplied by the layout, such as the minimise button. */
+  actions?: ReactNode;
 };
 
 export function TrafficPane({
@@ -21,17 +25,21 @@ export function TrafficPane({
   selectedArticleId,
   onSelectArticle,
   activeTag,
+  actions,
 }: TrafficPaneProps) {
   return (
     <section className="md-pane flex h-full min-h-0 flex-col">
       <div className="md-pane-head">
-        <div>
+        <div className="min-w-0">
           <div className="md-title-lg">Reporting stream</div>
-          <div className="md-label-sm">
+          <div className="md-label-sm truncate">
             {`${matched} of ${total} items${activeTag ? ` · ${activeTag}` : ""}`}
           </div>
         </div>
-        <span className="md-label-sm md-mono">Click an item to read the summary</span>
+        <div className="flex shrink-0 items-center gap-1">
+          <HelpButton topic="stream" />
+          {actions}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">

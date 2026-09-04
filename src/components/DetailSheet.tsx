@@ -22,6 +22,7 @@ export function DetailSheet({
   onOpenArticle,
 }: DetailSheetProps) {
   const [activeImage, setActiveImage] = useState(0);
+  const [maximised, setMaximised] = useState(false);
 
   useEffect(() => {
     setActiveImage(0);
@@ -29,11 +30,14 @@ export function DetailSheet({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Escape backs out one step: leave full screen first, then close.
+      if (maximised) setMaximised(false);
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, maximised]);
 
   if (!story && !article) return null;
 
@@ -52,11 +56,18 @@ export function DetailSheet({
 
   return (
     <div
-      /* Near full-height on phones so the report is readable; a bottom sheet
-         over the globe from `lg` up, where the map stays useful alongside. */
-      className="md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]"
+      /* Docked: near full-height on phones so the report is readable, and a
+         bottom sheet over the globe from `lg` up where the map stays useful
+         alongside. Maximised: fixed to the viewport so it escapes the pane
+         that would otherwise clip it. */
+      className={
+        maximised
+          ? "md-sheet fixed inset-0 z-[110] flex flex-col overflow-hidden"
+          : "md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]"
+      }
       style={{ background: "var(--md-container)", boxShadow: "var(--elev-5)" }}
       role="dialog"
+      aria-modal={maximised}
       aria-label="Report detail"
     >
       <div
@@ -88,13 +99,32 @@ export function DetailSheet({
             </div>
           )}
         </div>
-        <button type="button" className="md-icon-btn" onClick={onClose} aria-label="Close">
-          <Icon name="close" size={20} />
-        </button>
+        <div className="flex shrink-0 items-center">
+          <button
+            type="button"
+            className="md-icon-btn"
+            onClick={() => setMaximised((v) => !v)}
+            aria-label={maximised ? "Exit full screen" : "Open full screen"}
+            title={maximised ? "Exit full screen" : "Open full screen"}
+          >
+            <Icon name={maximised ? "fullscreen_exit" : "fullscreen"} size={19} />
+          </button>
+          <button type="button" className="md-icon-btn" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div
+          /* Full screen earns the two-column split sooner, and caps the line
+             length so the assessment stays readable on a wide monitor. */
+          className={
+            maximised
+              ? "mx-auto grid max-w-[1180px] gap-5 p-4 md:grid-cols-[minmax(0,380px)_minmax(0,1fr)] sm:p-6"
+              : "grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]"
+          }
+        >
           <div className="space-y-2">
             <div
               className="aspect-video w-full overflow-hidden rounded-2xl"

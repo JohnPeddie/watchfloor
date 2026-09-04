@@ -87,7 +87,7 @@ For a first run the defaults are fine. The values that matter for LAN hosting:
 | Variable | Default | What it does |
 |---|---|---|
 | `WATCHFLOOR_BIND` | `0.0.0.0` | Interface to publish on. `0.0.0.0` means every device on the network can connect. Set `127.0.0.1` to restrict to the server itself. |
-| `WATCHFLOOR_PORT` | `3000` | Port on the host. Change if 3000 is taken. |
+| `WATCHFLOOR_PORT` | `3050` | Port on the host. Change if 3050 is taken. |
 | `SUMMARIZER` | `rules` | `rules` is offline and always works. Switch to `ollama` later. |
 | `CYCLE_SECONDS` | `3600` | Seconds between automatic collection runs. |
 | `TZ` | `Europe/London` | Affects timestamps in logs. |
@@ -123,19 +123,19 @@ The database starts empty. Populate it:
 
 ```bash
 # Pull the feeds
-curl -X POST http://localhost:3000/api/ingest \
+curl -X POST http://localhost:3050/api/ingest \
   -H 'Content-Type: application/json' \
   -d '{"fetchImages":true,"maxPerFeed":12}'
 
 # Build today's brief
-curl -X POST http://localhost:3000/api/brief \
+curl -X POST http://localhost:3050/api/brief \
   -H 'Content-Type: application/json' -d '{}'
 ```
 
 Then confirm the app considers itself well:
 
 ```bash
-curl -s http://localhost:3000/api/health
+curl -s http://localhost:3050/api/health
 ```
 
 You want `"status":"ok"` with a non-zero article count.
@@ -153,7 +153,7 @@ hostname -I | awk '{print $1}'
 Say that prints `192.168.1.42`. From any other device on the network, open:
 
 ```
-http://192.168.1.42:3000
+http://192.168.1.42:3050
 ```
 
 ### 2. Give the server a fixed address
@@ -186,14 +186,14 @@ Only needed if a firewall is active. Check with `sudo ufw status`.
 
 ```bash
 # Allow just your local subnet, not the whole world
-sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
+sudo ufw allow from 192.168.1.0/24 to any port 3050 proto tcp
 sudo ufw reload
 ```
 
 On Fedora, RHEL or CentOS:
 
 ```bash
-sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --permanent --add-port=3050/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -208,7 +208,7 @@ sudo firewall-cmd --reload
 
 Typing an IP address gets old. Options, cheapest first.
 
-### mDNS — `http://watchfloor.local:3000`
+### mDNS — `http://watchfloor.local:3050`
 
 Works out of the box from Macs, iPhones, iPads and most Linux desktops.
 Windows needs Bonjour installed, which it often already has.
@@ -239,7 +239,7 @@ Pi-hole and OPNsense both do this well.
 
 ## Port 80 with a reverse proxy
 
-To drop the `:3000`, put Caddy in front. It is a single binary with a
+To drop the `:3050`, put Caddy in front. It is a single binary with a
 three-line config.
 
 First, bind the app to localhost only, so the proxy is the sole entry point.
@@ -264,7 +264,7 @@ Replace `/etc/caddy/Caddyfile` with:
 
 ```caddyfile
 http://watchfloor.local, http://192.168.1.42 {
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:3050
 }
 ```
 
@@ -313,8 +313,8 @@ crontab -e
 
 ```cron
 # Collect hourly, rebuild the brief at 06:00
-17 * * * * curl -fsS -m 600 -X POST http://localhost:3000/api/ingest -H 'Content-Type: application/json' -d '{"fetchImages":true,"maxPerFeed":12}' >/dev/null
-0  6 * * * curl -fsS -m 600 -X POST http://localhost:3000/api/brief -H 'Content-Type: application/json' -d '{}' >/dev/null
+17 * * * * curl -fsS -m 600 -X POST http://localhost:3050/api/ingest -H 'Content-Type: application/json' -d '{"fetchImages":true,"maxPerFeed":12}' >/dev/null
+0  6 * * * curl -fsS -m 600 -X POST http://localhost:3050/api/brief -H 'Content-Type: application/json' -d '{}' >/dev/null
 ```
 
 ### Writing your own brief
@@ -327,7 +327,7 @@ rebuild after adding one:
 
 ```bash
 docker compose up -d --build app
-curl -X POST http://localhost:3000/api/brief -H 'Content-Type: application/json' -d '{}'
+curl -X POST http://localhost:3050/api/brief -H 'Content-Type: application/json' -d '{}'
 ```
 
 Each story's `match` array links it to real ingested articles by headline
@@ -406,7 +406,7 @@ OLLAMA_TIMEOUT_MS=120000
 
 ```bash
 docker compose up -d app
-curl -s http://localhost:3000/api/summarizer
+curl -s http://localhost:3050/api/summarizer
 ```
 
 You are looking for `"degraded": false` and the ollama provider showing
@@ -421,7 +421,7 @@ scheduler drains this backlog automatically at `SUMMARIZE_BATCH` per cycle.
 To push it along:
 
 ```bash
-curl -X POST http://localhost:3000/api/summarize \
+curl -X POST http://localhost:3050/api/summarize \
   -H 'Content-Type: application/json' -d '{"limit":50}'
 ```
 
@@ -543,7 +543,7 @@ WorkingDirectory=/opt/watchfloor
 EnvironmentFile=/opt/watchfloor/.env
 # Bind all interfaces so the LAN can reach it.
 Environment=HOSTNAME=0.0.0.0
-Environment=PORT=3000
+Environment=port=3050
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/npm start
 Restart=on-failure
@@ -611,10 +611,10 @@ systemctl list-timers watchfloor-collect.timer
 Confirm what the port is bound to:
 
 ```bash
-sudo ss -tlnp | grep 3000
+sudo ss -tlnp | grep 3050
 ```
 
-`0.0.0.0:3000` or `*:3000` is correct. `127.0.0.1:3000` means it is
+`0.0.0.0:3050` or `*:3050` is correct. `127.0.0.1:3050` means it is
 localhost-only — set `WATCHFLOOR_BIND=0.0.0.0` and re-run
 `docker compose up -d`. If the binding looks right, the firewall is the next
 suspect, then client-side isolation on the router (many access points have an
@@ -642,7 +642,7 @@ database file while the container is running — use the HTTP endpoints instead,
 which is what the scheduler does.
 
 **Summaries still look mechanical after enabling Ollama.**
-Check `curl -s http://localhost:3000/api/summarizer`. If `degraded` is true,
+Check `curl -s http://localhost:3050/api/summarizer`. If `degraded` is true,
 the fallback is active and the `detail` field explains why. If it is false,
 the backlog simply has not drained yet — see step 4 of the Ollama section.
 

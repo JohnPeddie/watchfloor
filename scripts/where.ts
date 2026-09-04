@@ -7,7 +7,7 @@
  */
 import { networkInterfaces } from "node:os";
 
-const port = Number(process.env.WATCHFLOOR_PORT ?? process.env.PORT ?? 3000);
+const port = Number(process.env.WATCHFLOOR_PORT ?? process.env.PORT ?? 3050);
 
 type Entry = { label: string; host: string; note: string };
 

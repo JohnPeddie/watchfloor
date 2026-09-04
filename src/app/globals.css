@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Material 3 dark scheme — amber/ochre primary, teal secondary
+   Material 3 colour schemes — amber/ochre primary, teal secondary.
+   Dark is the default; `data-theme="light"` on <html> swaps the tokens.
+   Everything downstream reads these variables, so nothing else needs
+   to know which scheme is active.
    ============================================================ */
 
 :root {
@@ -37,11 +40,78 @@
 
   --md-scrim: rgba(0, 0, 0, 0.6);
 
+  /* Interaction overlays. Light-on-dark here, dark-on-light in the light
+     scheme, so hover and press states stay visible in both. */
+  --md-hover: rgba(255, 255, 255, 0.08);
+  --md-press: rgba(255, 255, 255, 0.12);
+  --md-primary-tint: rgba(255, 183, 124, 0.1);
+
   --elev-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px 1px rgba(0, 0, 0, 0.22);
   --elev-2: 0 1px 2px rgba(0, 0, 0, 0.42), 0 2px 6px 2px rgba(0, 0, 0, 0.24);
   --elev-3: 0 4px 8px 3px rgba(0, 0, 0, 0.26), 0 1px 3px rgba(0, 0, 0, 0.44);
   --elev-4: 0 6px 10px 4px rgba(0, 0, 0, 0.28), 0 2px 3px rgba(0, 0, 0, 0.46);
   --elev-5: 0 8px 12px 6px rgba(0, 0, 0, 0.3), 0 4px 4px rgba(0, 0, 0, 0.48);
+}
+
+:root[data-theme="light"] {
+  --md-surface: #fdfaf7;
+  --md-surface-dim: #efe8e1;
+  --md-surface-bright: #ffffff;
+  --md-container-lowest: #ffffff;
+  --md-container-low: #f9f4ef;
+  --md-container: #f4eee8;
+  --md-container-high: #ebe4dc;
+  --md-container-highest: #e3dbd2;
+
+  --md-on-surface: #1d1a17;
+  --md-on-surface-variant: #504539;
+  --md-outline: #7a7065;
+  --md-outline-variant: #d5cabd;
+
+  --md-primary: #8a5000;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #ffdcc2;
+  --md-on-primary-container: #2c1600;
+
+  --md-secondary: #00635a;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #a6f2e5;
+  --md-on-secondary-container: #00201c;
+
+  --md-tertiary: #45509a;
+  --md-error: #ba1a1a;
+  --md-error-container: #ffdad6;
+  --md-success: #2c6b30;
+  --md-warning: #7a5900;
+
+  --md-scrim: rgba(0, 0, 0, 0.32);
+
+  --md-hover: rgba(0, 0, 0, 0.06);
+  --md-press: rgba(0, 0, 0, 0.1);
+  --md-primary-tint: rgba(138, 80, 0, 0.09);
+
+  --elev-1: 0 1px 2px rgba(60, 45, 30, 0.14), 0 1px 3px 1px rgba(60, 45, 30, 0.07);
+  --elev-2: 0 1px 2px rgba(60, 45, 30, 0.16), 0 2px 6px 2px rgba(60, 45, 30, 0.08);
+  --elev-3: 0 4px 8px 3px rgba(60, 45, 30, 0.1), 0 1px 3px rgba(60, 45, 30, 0.17);
+  --elev-4: 0 6px 10px 4px rgba(60, 45, 30, 0.11), 0 2px 3px rgba(60, 45, 30, 0.18);
+  --elev-5: 0 8px 12px 6px rgba(60, 45, 30, 0.12), 0 4px 4px rgba(60, 45, 30, 0.19);
+}
+
+/**
+ * The globe is a night-side satellite texture in both schemes, so anything
+ * floating over it keeps on-dark colours regardless of the active theme.
+ * Redefining the tokens on the container cascades to every child.
+ */
+.on-globe {
+  --md-on-surface: #eef1f3;
+  --md-on-surface-variant: #c3ccd2;
+  --md-outline: #9aa4ab;
+  --md-container-high: rgba(255, 255, 255, 0.16);
+  --md-outline-variant: rgba(255, 255, 255, 0.24);
+  --md-secondary-container: #005048;
+  --md-on-secondary-container: #9df2e4;
+  --md-hover: rgba(255, 255, 255, 0.12);
+  color: #eef1f3;
 }
 
 @theme inline {
@@ -248,7 +318,7 @@ body {
   cursor: pointer;
 }
 .md-btn-text:hover {
-  background: rgba(255, 183, 124, 0.1);
+  background: var(--md-primary-tint);
 }
 
 .md-icon-btn {
@@ -265,7 +335,7 @@ body {
   transition: background-color 120ms ease, color 120ms ease;
 }
 .md-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--md-hover);
   color: var(--md-on-surface);
 }
 
@@ -293,13 +363,63 @@ body {
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 .md-chip-filter:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--md-hover);
 }
 .md-chip-filter[aria-pressed="true"] {
   background: var(--md-secondary-container);
   border-color: var(--md-secondary-container);
   color: var(--md-on-secondary-container);
 }
+
+/**
+ * Tag and precedence chips carry one hue each and derive their text, fill and
+ * border from it. Only the lightness changes between schemes, so a light theme
+ * needs no second palette — pale-on-dark simply becomes deep-on-light.
+ */
+:root {
+  --chip-fg-l: 70%;
+  --chip-bg-a: 0.12;
+  --chip-border-a: 0.45;
+}
+:root[data-theme="light"] {
+  --chip-fg-l: 30%;
+  --chip-bg-a: 0.16;
+  --chip-border-a: 0.5;
+}
+
+.md-chip-hue {
+  color: hsl(var(--h) var(--s) var(--chip-fg-l));
+  background: hsl(var(--h) var(--s) 50% / var(--chip-bg-a));
+  border-color: hsl(var(--h) var(--s) 50% / var(--chip-border-a));
+}
+.md-chip-hue.is-strong {
+  border-color: hsl(var(--h) var(--s) var(--chip-fg-l));
+}
+.md-chip-hue.md-chip-filter[aria-pressed="true"] {
+  background: var(--md-secondary-container);
+  border-color: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.hue-DEFENCE   { --h: 43;  --s: 100%; }
+.hue-UK        { --h: 214; --s: 100%; }
+.hue-ENERGY    { --h: 27;  --s: 83%; }
+.hue-MARKETS   { --h: 154; --s: 50%; }
+.hue-CYBER     { --h: 172; --s: 62%; }
+.hue-KINETIC   { --h: 9;   --s: 100%; }
+.hue-MARITIME  { --h: 199; --s: 66%; }
+.hue-AIR       { --h: 212; --s: 30%; }
+.hue-NUCLEAR   { --h: 55;  --s: 68%; }
+.hue-TERROR    { --h: 0;   --s: 76%; }
+.hue-ESPIONAGE { --h: 272; --s: 57%; }
+.hue-SANCTIONS { --h: 33;  --s: 52%; }
+.hue-POLITICAL { --h: 212; --s: 26%; }
+.hue-SUPPLY    { --h: 89;  --s: 38%; }
+
+.hue-FLASH     { --h: 8;   --s: 100%; }
+.hue-IMMEDIATE { --h: 41;  --s: 100%; }
+.hue-PRIORITY  { --h: 180; --s: 35%; }
+.hue-ROUTINE   { --h: 213; --s: 22%; }
 
 /* ---------------- Search field ---------------- */
 

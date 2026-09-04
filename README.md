@@ -22,7 +22,7 @@ npm run brief
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The layout adapts to the
+Open [http://localhost:3050](http://localhost:3050). The layout adapts to the
 screen it is on:
 
 | Width | Layout |
@@ -30,6 +30,10 @@ screen it is on:
 | Below 768px (phones) | One pane at a time via the bottom navigation bar. The app bar and lane chips slide away as you scroll so the reporting gets the full screen, and return when you scroll back up. |
 | 768–1279px (tablets) | Two columns — reporting on the left (brief above the stream), globe and analysis on the right. Lane chips stay as a horizontal row. |
 | 1280px and up (desktop) | Three columns, with the vertical lane rail on the far left. |
+
+The port is **3050**, not Next's default 3000, so it does not collide with
+whatever else is already on 3000 on a home server. Override it with
+`WATCHFLOOR_PORT` when deploying.
 
 To reach it from a phone or tablet on the same network, serve on all
 interfaces and ask for the current URL:
@@ -51,11 +55,17 @@ To run it on a Linux server and reach it from anywhere on your network, see
 ### Layout
 
 - **Nav rail** (far left): lane and tag filtering.
-- **Brief pane** (left): the day's authored Global Radar Report. Click a story to fly the globe to it.
+- **Brief pane** (left): the day's Global Radar Report. Click a story to fly the globe to it and draw connectors to the reports behind it.
 - **Globe** (centre): live day/night terminator, country boundaries, and pins for brief stories and geolocated articles. Clicking a pin opens the detail sheet.
 - **Traffic pane** (centre, below): the full article feed with thumbnails, tags, precedence and source grades.
 - **Insight pane** (right): Brent, WTI, GBP/USD and FTSE sparklines, classification breakdown, and collection status.
-- **Detail sheet**: image carousel, extracted analysis, implication, source link and related articles.
+- **Detail sheet**: image carousel, extracted analysis, implication, source link and related articles. The maximise button opens it over the whole window; Escape steps back out, then closes.
+
+### Working with the panes
+
+- **Theme**: the sun/moon button in the app bar switches between the dark and light schemes. The choice is remembered, and a first visit follows the system preference. Colour lives entirely in CSS custom properties, so tags and precedence chips re-tint themselves rather than needing a second palette.
+- **Minimising**: the globe and the reporting stream each have a minimise button. On tablet and desktop the pane collapses to a slim bar and hands its height to the pane sharing its column, so the globe can take the whole middle column or the stream can. On a phone the same button goes full-bleed instead, hiding the app bar and navigation, because the panes already fill the screen one at a time. Opening a report restores the globe automatically, since the report is shown over it.
+- **Help**: the question-mark button in each panel explains what it is showing.
 
 ### Scripts
 
@@ -136,7 +146,7 @@ OLLAMA_MODEL=llama3.1:8b
 ```
 
 ```bash
-curl -s localhost:3000/api/summarizer   # confirm reachable, not degraded
+curl -s localhost:3050/api/summarizer   # confirm reachable, not degraded
 npm run summarize -- --limit=50         # upgrade existing summaries
 ```
 

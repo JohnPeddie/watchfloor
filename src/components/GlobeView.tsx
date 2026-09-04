@@ -278,7 +278,7 @@ export function GlobeView({
       style={{ isolation: "isolate", zIndex: 0 }}
     >
       {sunLabel && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[60]">
+        <div className="on-globe pointer-events-none absolute bottom-3 left-3 z-[60]">
           <div
             className="md-label-sm md-mono rounded-full px-2 py-1"
             style={{ background: "rgba(11,14,17,0.72)" }}

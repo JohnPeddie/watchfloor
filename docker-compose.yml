@@ -26,9 +26,9 @@ services:
       context: .
       target: runner
     # Bind on all interfaces so other machines on the network can connect.
-    # Change to "127.0.0.1:3000:3000" to expose only to the server itself.
+    # Change to "127.0.0.1:3050:3050" to expose only to the server itself.
     ports:
-      - "${WATCHFLOOR_BIND:-0.0.0.0}:${WATCHFLOOR_PORT:-3000}:3000"
+      - "${WATCHFLOOR_BIND:-0.0.0.0}:${WATCHFLOOR_PORT:-3050}:3050"
     environment:
       DATABASE_URL: file:/app/data/watchfloor.db
       # "rules" runs fully offline. Switch to "ollama" once the model host is
@@ -65,13 +65,13 @@ services:
         echo "scheduler: cycle every $${CYCLE_SECONDS}s"
         while true; do
           echo "[$$(date -u +%FT%TZ)] collecting"
-          curl -fsS -m 600 -X POST http://app:3000/api/ingest \
+          curl -fsS -m 600 -X POST http://app:3050/api/ingest \
             -H 'Content-Type: application/json' \
             -d '{"fetchImages":true,"maxPerFeed":12}' || echo "ingest failed"
-          curl -fsS -m 600 -X POST http://app:3000/api/summarize \
+          curl -fsS -m 600 -X POST http://app:3050/api/summarize \
             -H 'Content-Type: application/json' \
             -d "{\"limit\":$${SUMMARIZE_BATCH}}" || echo "summarize failed"
-          curl -fsS -m 600 -X POST http://app:3000/api/brief \
+          curl -fsS -m 600 -X POST http://app:3050/api/brief \
             -H 'Content-Type: application/json' -d '{}' || echo "brief failed"
           sleep "$${CYCLE_SECONDS}"
         done

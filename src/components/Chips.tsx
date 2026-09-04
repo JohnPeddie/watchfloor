@@ -1,18 +1,14 @@
 "use client";
 
-import { PRECEDENCE_STYLES, TAG_STYLES, type Precedence, type Tag } from "@/lib/classify";
+import { TAG_STYLES, type Precedence, type Tag } from "@/lib/classify";
 
+/**
+ * Colour comes from a per-hue CSS class rather than inline styles, so the
+ * chips re-tint themselves when the theme changes. See `.md-chip-hue`.
+ */
 export function TagChip({ tag }: { tag: Tag }) {
-  const style = TAG_STYLES[tag];
-  if (!style) return null;
-  return (
-    <span
-      className="md-chip"
-      style={{ color: style.fg, background: style.bg, borderColor: style.border }}
-    >
-      {tag}
-    </span>
-  );
+  if (!TAG_STYLES[tag]) return null;
+  return <span className={`md-chip md-chip-hue hue-${tag}`}>{tag}</span>;
 }
 
 export function TagChips({ tags, max = 4 }: { tags: Tag[]; max?: number }) {
@@ -32,17 +28,12 @@ export function PrecedenceChip({
   precedence: Precedence;
   dense?: boolean;
 }) {
-  const style = PRECEDENCE_STYLES[precedence] ?? PRECEDENCE_STYLES.ROUTINE;
   return (
     <span
-      className={`md-chip ${precedence === "FLASH" ? "md-pulse" : ""}`}
-      style={{
-        color: style.fg,
-        background: style.bg,
-        borderColor: style.fg,
-        height: dense ? 20 : 24,
-        fontSize: dense ? 9.5 : 10,
-      }}
+      className={`md-chip md-chip-hue is-strong hue-${precedence} ${
+        precedence === "FLASH" ? "md-pulse" : ""
+      }`}
+      style={{ height: dense ? 20 : 24, fontSize: dense ? 9.5 : 10 }}
     >
       {precedence}
     </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { PrecedenceChip, TagChips } from "@/components/Chips";
+import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
 import type { BriefDTO, BriefStoryDTO } from "@/lib/serializers";
 
@@ -14,16 +15,24 @@ export function BriefPane({ brief, selectedStoryId, onSelectStory }: BriefPanePr
   return (
     <section className="md-pane flex h-full min-h-0 flex-col">
       <div className="md-pane-head">
-        <div>
+        <div className="min-w-0">
           <div className="md-title-lg">Daily brief</div>
-          <div className="md-label-sm">{brief ? brief.title : "No product loaded"}</div>
+          <div className="md-label-sm truncate">
+            {brief ? brief.title : "No product loaded"}
+          </div>
         </div>
-        <span
-          className="md-mono rounded-full px-2 py-0.5 text-[10.5px]"
-          style={{ background: "var(--md-container-high)", color: "var(--md-on-surface-variant)" }}
-        >
-          {brief ? `${brief.stories.length} items` : "0"}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span
+            className="md-mono rounded-full px-2 py-0.5 text-[10.5px]"
+            style={{
+              background: "var(--md-container-high)",
+              color: "var(--md-on-surface-variant)",
+            }}
+          >
+            {brief ? `${brief.stories.length} items` : "0"}
+          </span>
+          <HelpButton topic="brief" />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">

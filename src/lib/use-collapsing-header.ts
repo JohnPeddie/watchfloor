@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Hides the top chrome while scrolling down and restores it on the way back
@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from "react";
  * flow with a negative margin, which keeps the panes below it full height.
  */
 export function useCollapsingHeader(enabled: boolean, resetKey: unknown) {
-  const headerRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [height, setHeight] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
@@ -21,14 +20,16 @@ export function useCollapsingHeader(enabled: boolean, resetKey: unknown) {
   // offset from the previous one.
   const lastOffsets = useRef(new WeakMap<EventTarget, number>());
 
-  useEffect(() => {
-    const header = headerRef.current;
-    if (!header) return;
-    const observer = new ResizeObserver(([entry]) => {
+  // A callback ref rather than an effect, because the header is unmounted
+  // whenever a pane goes full-bleed and comes back as a different node.
+  const observer = useRef<ResizeObserver | null>(null);
+  const headerRef = useCallback((node: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    if (!node) return;
+    observer.current = new ResizeObserver(([entry]) => {
       if (entry) setHeight(entry.contentRect.height);
     });
-    observer.observe(header);
-    return () => observer.disconnect();
+    observer.current.observe(node);
   }, []);
 
   useEffect(() => {

@@ -32,13 +32,30 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * Applies the saved theme before first paint. Without this the page renders
+ * dark and then snaps to light, which is worse than either scheme.
+ */
+const THEME_BOOTSTRAP = `
+try {
+  var saved = localStorage.getItem('watchfloor:theme');
+  var theme = saved || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  document.documentElement.dataset.theme = theme;
+} catch (e) {
+  document.documentElement.dataset.theme = 'dark';
+}
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
       <body className={`${roboto.variable} ${robotoMono.variable} antialiased`}>
         {children}
       </body>

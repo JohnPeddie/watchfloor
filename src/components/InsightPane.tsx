@@ -1,7 +1,8 @@
 "use client";
 
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { TAG_ORDER, TAG_STYLES, type Tag } from "@/lib/classify";
+import { TAG_ORDER, type Tag } from "@/lib/classify";
+import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
 import type { MarketQuote } from "@/lib/markets";
 import type { SummarizerStatus } from "@/lib/serializers";
@@ -36,7 +37,10 @@ export function InsightPane({
             <Icon name="drop" size={18} className="text-[var(--md-primary)]" />
             Energy
           </div>
-          <span className="md-label-sm">USD / bbl</span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="md-label-sm">USD / bbl</span>
+            <HelpButton topic="energy" />
+          </div>
         </div>
         <div className="space-y-2 px-3 pb-3">
           {oil.map((q) => (
@@ -51,6 +55,7 @@ export function InsightPane({
             <Icon name="trending" size={18} className="text-[var(--md-secondary)]" />
             Markets
           </div>
+          <HelpButton topic="markets" />
         </div>
         <div className="px-3 pb-3">
           <div className="md-card-outlined divide-y divide-[var(--md-outline-variant)]">
@@ -64,6 +69,7 @@ export function InsightPane({
       <section className="md-pane shrink-0">
         <div className="md-pane-head">
           <div className="md-title-lg">Precedence</div>
+          <HelpButton topic="precedence" />
         </div>
         <div className="grid grid-cols-4 gap-2 px-3 pb-3">
           {(["FLASH", "IMMEDIATE", "PRIORITY", "ROUTINE"] as const).map((p) => (
@@ -96,9 +102,12 @@ export function InsightPane({
       <section className="md-pane shrink-0">
         <div className="md-pane-head">
           <div className="md-title-lg">Classification</div>
-          <button type="button" className="md-btn-text" onClick={() => onSelectTag(null)}>
-            Reset
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" className="md-btn-text" onClick={() => onSelectTag(null)}>
+              Reset
+            </button>
+            <HelpButton topic="classification" />
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5 px-3 pb-3">
           {TAG_ORDER.filter((t) => (tagCounts[t] ?? 0) > 0).map((tag) => (
@@ -116,9 +125,12 @@ export function InsightPane({
       <section className="md-pane shrink-0">
         <div className="md-pane-head">
           <div className="md-title-lg">Collection</div>
-          <span className="md-label-sm">
-            {`${feedStatus.filter((f) => f.online).length}/${feedStatus.length} online`}
-          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="md-label-sm">
+              {`${feedStatus.filter((f) => f.online).length}/${feedStatus.length} online`}
+            </span>
+            <HelpButton topic="collection" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 px-3 pb-3">
           {feedStatus.map((f) => (
@@ -156,17 +168,22 @@ function SummarizerCard({ status }: { status: SummarizerStatus }) {
           <Icon name="insights" size={18} className="text-[var(--md-secondary)]" />
           Summarisation
         </div>
-        <span
-          className="md-mono rounded-full px-2 py-0.5 text-[10px]"
-          style={{
-            background: usingRules ? "var(--md-container-high)" : "var(--md-primary-container)",
-            color: usingRules
-              ? "var(--md-on-surface-variant)"
-              : "var(--md-on-primary-container)",
-          }}
-        >
-          {usingRules ? "RULES" : "LLM"}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span
+            className="md-mono rounded-full px-2 py-0.5 text-[10px]"
+            style={{
+              background: usingRules
+                ? "var(--md-container-high)"
+                : "var(--md-primary-container)",
+              color: usingRules
+                ? "var(--md-on-surface-variant)"
+                : "var(--md-on-primary-container)",
+            }}
+          >
+            {usingRules ? "RULES" : "LLM"}
+          </span>
+          <HelpButton topic="summarisation" />
+        </div>
       </div>
 
       <div className="space-y-1.5 px-3 pb-3">
@@ -222,8 +239,8 @@ function OilCard({ quote }: { quote: MarketQuote }) {
           <AreaChart data={quote.series.slice(-45)} margin={{ top: 4, bottom: 0, left: 0, right: 0 }}>
             <defs>
               <linearGradient id={`fill-${quote.symbol}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ffb77c" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#ffb77c" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--md-primary)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="var(--md-primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
             <YAxis domain={["dataMin", "dataMax"]} hide />
@@ -235,12 +252,12 @@ function OilCard({ quote }: { quote: MarketQuote }) {
                 fontSize: 11,
                 boxShadow: "var(--elev-3)",
               }}
-              labelStyle={{ color: "#b9c3c9" }}
+              labelStyle={{ color: "var(--md-on-surface-variant)" }}
             />
             <Area
               type="monotone"
               dataKey="v"
-              stroke="#ffb77c"
+              stroke="var(--md-primary)"
               strokeWidth={2}
               fill={`url(#fill-${quote.symbol})`}
               isAnimationActive={false}
@@ -270,7 +287,7 @@ function MarketRow({ quote }: { quote: MarketQuote }) {
             <Line
               type="monotone"
               dataKey="v"
-              stroke={up ? "#86d989" : "#ffb4ab"}
+              stroke={up ? "var(--md-success)" : "var(--md-error)"}
               strokeWidth={1.6}
               dot={false}
               isAnimationActive={false}
@@ -299,18 +316,12 @@ function TagFilter({
   active: boolean;
   onClick: () => void;
 }) {
-  const style = TAG_STYLES[tag];
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="md-chip md-chip-filter"
-      style={
-        active
-          ? undefined
-          : { color: style.fg, background: style.bg, borderColor: style.border }
-      }
+      className={`md-chip md-chip-filter md-chip-hue hue-${tag}`}
     >
       {tag}
       <span style={{ opacity: 0.7 }}>{count}</span>

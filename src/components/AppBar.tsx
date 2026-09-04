@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon, WatchfloorMark } from "@/components/Icon";
 import { dtg } from "@/lib/dtg";
+import { useTheme } from "@/lib/use-theme";
 
 type AppBarProps = {
   query: string;
@@ -24,6 +25,7 @@ export function AppBar({
   flashCount,
 }: AppBarProps) {
   const [now, setNow] = useState<Date | null>(null);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     setNow(new Date());
@@ -100,6 +102,16 @@ export function AppBar({
             UK threat: Substantial
           </span>
         </div>
+
+        <button
+          type="button"
+          className="md-icon-btn"
+          onClick={toggleTheme}
+          aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+          title={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+        >
+          <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={19} />
+        </button>
 
         <button
           type="button"

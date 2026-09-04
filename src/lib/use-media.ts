@@ -1,31 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 /**
  * Tracks a media query.
  *
- * Starts false so server and first client render agree, then corrects after
- * mount. Layout itself is driven by CSS breakpoints; this is only for
- * behaviour that CSS cannot express, such as which pane to switch to when a
- * report is opened.
+ * Reads synchronously on the client so the first browser render already has
+ * the right breakpoint. The server snapshot is false, which matches the
+ * narrowest layout — the panes are empty until data loads, so correcting the
+ * layout at hydration is not visible.
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", onChange);
+      return () => list.removeEventListener("change", onChange);
+    },
+    [query],
+  );
 
-  useEffect(() => {
-    const list = window.matchMedia(query);
-    setMatches(list.matches);
-
-    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-    list.addEventListener("change", onChange);
-    return () => list.removeEventListener("change", onChange);
-  }, [query]);
-
-  return matches;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
 }
 
-/** True below Tailwind's `md`, where panes are shown one at a time. */
+/** Below `md`: one pane at a time, driven by the bottom navigation bar. */
 export function useIsCompact(): boolean {
   return useMediaQuery("(max-width: 767px)");
+}
+
+/** `md` to `xl`: two columns, reporting on the left and the globe on the right. */
+export function useIsTablet(): boolean {
+  return useMediaQuery("(min-width: 768px) and (max-width: 1279px)");
 }
