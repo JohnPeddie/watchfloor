@@ -128,7 +128,9 @@
 html,
 body {
   height: 100%;
+  height: 100dvh;
   margin: 0;
+  overflow: hidden;
   background: var(--md-surface-dim);
   color: var(--md-on-surface);
   font-family: var(--font-roboto), Roboto, system-ui, sans-serif;
@@ -451,9 +453,10 @@ body {
 
 .md-list-item {
   display: flex;
+  align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 10px 12px;
   text-align: left;
   background: transparent;
   border: none;
@@ -463,6 +466,37 @@ body {
 }
 .md-list-item[data-selected="true"] {
   background: var(--md-container-high);
+}
+
+/* Fixed crop box for article imagery. The img is taken out of flow so its
+   intrinsic size cannot stretch a list row or the reader pane. */
+.md-media {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--md-container-high);
+  border-radius: 10px;
+}
+.md-media > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  object-position: center;
+}
+.md-media-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--md-outline);
 }
 
 /* ---------------- Divider / misc ---------------- */
@@ -524,6 +558,63 @@ body {
   animation: md-sheet-in 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
+@keyframes md-drawer-in {
+  from {
+    transform: translateX(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.md-field {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--md-outline-variant);
+  background: var(--md-container);
+  color: var(--md-on-surface);
+  font-family: inherit;
+  font-size: 13px;
+}
+.md-field:focus {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 1px;
+}
+
+.md-switch {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: var(--md-outline-variant);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 120ms ease;
+}
+.md-switch[aria-checked="true"] {
+  background: var(--md-primary);
+}
+.md-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--md-on-surface);
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.md-switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+  background: var(--md-on-primary);
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -539,6 +630,7 @@ body {
 
 /* Globe image markers */
 .globe-marker {
+  position: relative;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -554,8 +646,13 @@ body {
   z-index: 5;
 }
 .globe-marker img {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
+  max-width: none;
+  max-height: none;
   object-fit: cover;
 }
 
@@ -582,6 +679,10 @@ body {
   .md-chip {
     min-height: 32px;
   }
+  .md-list-item .md-chip,
+  .md-pane-head .md-chip {
+    min-height: 0;
+  }
   .md-icon-btn {
     min-width: 40px;
     min-height: 40px;
@@ -606,6 +707,36 @@ body {
 @media (max-width: 767px) {
   .md-sheet {
     animation: none;
+  }
+}
+
+/* Fold cover and inner-landscape chrome. `data-floor` is set from JS so it
+   follows the Fold 8 cover/inner split rather than a 768px width guess. */
+[data-floor="cover"] .md-search,
+[data-short="true"] .md-search {
+  height: 36px;
+  padding: 0 12px;
+}
+[data-floor="cover"] .md-pane-head,
+[data-short="true"] .md-pane-head {
+  padding: 8px 12px 6px;
+}
+[data-floor="cover"] .globe-chip-label,
+[data-short="true"] .globe-chip-label {
+  display: none;
+}
+[data-floor="cover"] .md-pane {
+  border-radius: 16px;
+}
+
+/* Article reader: image above copy on the Fold. Side-by-side only on a
+   wide PC pane, where the middle column has room for both. */
+.md-detail-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1280px) {
+  [data-floor="desktop"] .md-detail-body {
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   }
 }
 

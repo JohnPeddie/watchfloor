@@ -39,6 +39,23 @@ const TAG_WEIGHT: Partial<Record<Tag, number>> = {
   POLITICAL: 0.6,
 };
 
+/** Standing interest lanes the brief should try to represent. */
+export const COVERAGE_LANES: Tag[] = [
+  "UK",
+  "DEFENCE",
+  "KINETIC",
+  "ENERGY",
+  "CYBER",
+  "MARKETS",
+];
+
+export const MIN_BRIEF_STORIES = 5;
+/** Hard cap so a frantic news day cannot drown the product. */
+export const BRIEF_CEILING = 12;
+export const DEFAULT_MAX_BRIEF_STORIES = BRIEF_CEILING;
+/** Distinct coverage lanes that count as a reasonably mixed product. */
+export const MIN_COVERAGE_LANES = 3;
+
 const TITLE_STOPWORDS = new Set([
   "after", "amid", "with", "from", "over", "into", "says", "said", "will",
   "that", "this", "their", "there", "than", "then", "have", "been", "more",
@@ -119,7 +136,7 @@ export type ClusterOptions = {
 export function clusterArticles(
   candidates: ClusterCandidate[],
   {
-    maxClusters = 7,
+    maxClusters = BRIEF_CEILING,
     minOverlap = 0.38,
     minSources = 4,
     minOutlets = 1,
@@ -173,11 +190,6 @@ export function clusterArticles(
     // running order, as it would on a real watchfloor.
     .sort((a, b) => clusterScore(b) - clusterScore(a))
     .slice(0, maxClusters)
-    .sort(
-      (a, b) =>
-        PRECEDENCE_RANK[b.precedence] - PRECEDENCE_RANK[a.precedence] ||
-        clusterScore(b) - clusterScore(a),
-    )
     .map((cluster, index) => ({ ...cluster, key: `${index}:${cluster.key}` }));
 }
 
@@ -219,10 +231,88 @@ function toStoryCluster(cluster: WorkingCluster): StoryCluster & { members: Clus
  * standing requirements.
  */
 function clusterScore(cluster: StoryCluster & { members?: ClusterCandidate[] }): number {
-  const members = cluster.members ?? [];
+  const members = cluster.members ?? cluster.articles;
   const urgency = PRECEDENCE_RANK[cluster.precedence] * 2.2;
   const corroboration = Math.log2(1 + new Set(members.map((m) => m.sourceName)).size) * 1.8;
   const relevance = cluster.tags.reduce((sum, tag) => sum + (TAG_WEIGHT[tag] ?? 0), 0);
   const substance = members.some((m) => (m.bodyText?.length ?? 0) > 800) ? 0.8 : 0;
   return urgency + corroboration + relevance + substance;
+}
+
+const COVERAGE_SET = new Set<Tag>(COVERAGE_LANES);
+
+export function coverageLanesOf(items: { tags: Tag[] }[]): Set<Tag> {
+  const present = new Set<Tag>();
+  for (const item of items) {
+    for (const tag of item.tags) {
+      if (COVERAGE_SET.has(tag)) present.add(tag);
+    }
+  }
+  return present;
+}
+
+export function briefIsAdequate(items: { tags: Tag[] }[]): boolean {
+  return items.length >= MIN_BRIEF_STORIES && coverageLanesOf(items).size >= MIN_COVERAGE_LANES;
+}
+
+/**
+ * Picks stories from a scored pool, filling uncovered interest lanes first.
+ * `limit` is a ceiling, not a target — a busy day keeps every strong cluster
+ * up to that cap.
+ */
+export function pickBriefClusters<T extends { tags: Tag[] }>(
+  pool: T[],
+  limit = BRIEF_CEILING,
+): T[] {
+  const remaining = [...pool];
+  const selected: T[] = [];
+
+  while (remaining.length > 0 && selected.length < limit) {
+    const have = coverageLanesOf(selected);
+    let idx = 0;
+    if (have.size < COVERAGE_LANES.length) {
+      const fill = remaining.findIndex((item) =>
+        item.tags.some((tag) => COVERAGE_SET.has(tag) && !have.has(tag)),
+      );
+      if (fill >= 0) idx = fill;
+    }
+    selected.push(remaining.splice(idx, 1)[0]!);
+  }
+
+  return selected;
+}
+
+function sharesArticles(a: StoryCluster, b: StoryCluster): boolean {
+  const ids = new Set(a.articles.map((article) => article.id));
+  return b.articles.some((article) => ids.has(article.id));
+}
+
+/**
+ * Keeps every already-chosen story and only pulls extras from `pool` until
+ * the brief has five items and mixed lanes. Used when relaxing tolerance
+ * so a quiet day can fill, without replacing a busy day's strict set.
+ */
+export function fillBriefToFloor(
+  selected: StoryCluster[],
+  pool: StoryCluster[],
+  limit = BRIEF_CEILING,
+): StoryCluster[] {
+  const combined = [...selected];
+  const remaining = pool.filter(
+    (candidate) => !combined.some((have) => sharesArticles(have, candidate)),
+  );
+
+  while (remaining.length > 0 && combined.length < limit && !briefIsAdequate(combined)) {
+    const have = coverageLanesOf(combined);
+    let idx = 0;
+    if (have.size < MIN_COVERAGE_LANES) {
+      const fill = remaining.findIndex((item) =>
+        item.tags.some((tag) => COVERAGE_SET.has(tag) && !have.has(tag)),
+      );
+      if (fill >= 0) idx = fill;
+    }
+    combined.push(remaining.splice(idx, 1)[0]!);
+  }
+
+  return combined;
 }

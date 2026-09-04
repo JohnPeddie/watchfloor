@@ -15,6 +15,7 @@ the end for machines where you would rather not run Docker.
 - [Port 80 with a reverse proxy](#port-80-with-a-reverse-proxy)
 - [Scheduled collection](#scheduled-collection)
 - [Adding the Ollama summariser](#adding-the-ollama-summariser)
+- [Adding LM Studio](#adding-lm-studio)
 - [Backups](#backups)
 - [Updating](#updating)
 - [Route B: bare Node with systemd](#route-b-bare-node-with-systemd)
@@ -433,6 +434,29 @@ summariser so collection stays quick, and it will never overwrite a summary
 that came from a better provider. The LLM work happens in the separate
 summarise pass. If the model host goes down, everything continues on the rules
 engine and the Summarisation card in the dashboard shows the degradation.
+
+---
+
+## Adding LM Studio
+
+LM Studio speaks OpenAI's `/v1` API on port **1234**, not Ollama's. Watchfloor
+uses the `openai` provider for that (`SUMMARIZER=lmstudio` is an alias).
+
+1. Load the model in LM Studio.
+2. Open **Developer** and start the local server (default `http://127.0.0.1:1234`).
+3. Turn **reasoning / thinking** off so replies are JSON, not a chain of thought.
+4. Context length at least 8k. GPU offload: as many layers as the card will hold.
+
+```
+SUMMARIZER=lmstudio
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_MODEL=
+LLM_TIMEOUT_MS=300000
+```
+
+Leave `OPENAI_MODEL` empty to use the loaded model. Confirm with
+`curl -s localhost:3050/api/summarizer` — `degraded` should be false and the
+`openai` provider reachable.
 
 ---
 

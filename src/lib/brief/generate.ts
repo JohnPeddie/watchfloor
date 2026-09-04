@@ -1,8 +1,20 @@
 import { prisma } from "../db";
 import type { Precedence, Tag } from "../classify";
+import { exclusive } from "../jobs";
+import { recordRun } from "../run-log";
+import { markBriefRan } from "../settings";
 import { resolveProvider } from "../summarize";
 import type { StoryCluster, StoryDraft } from "../summarize/types";
-import { clusterArticles, type ClusterCandidate } from "./cluster";
+import {
+  briefIsAdequate,
+  BRIEF_CEILING,
+  clusterArticles,
+  coverageLanesOf,
+  fillBriefToFloor,
+  MIN_BRIEF_STORIES,
+  pickBriefClusters,
+  type ClusterCandidate,
+} from "./cluster";
 
 export type GenerateOptions = {
   /** Brief date as YYYY-MM-DD. Defaults to today (UTC). */
@@ -10,11 +22,16 @@ export type GenerateOptions = {
   maxStories?: number;
   /**
    * How far back to look for reporting, in hours. Three days by default: a
-   * story needs four outlets on it to qualify, and that corroboration
+   * story needs several outlets on it to qualify, and that corroboration
    * accumulates over more than one news cycle.
    */
   windowHours?: number;
-  /** Reports required before a story earns a place in the brief. */
+  /**
+   * Starting corroboration bar. If the brief cannot reach five stories with
+   * mixed interest-lane coverage, generation steps this down automatically.
+   * A busy day keeps every well-corroborated cluster (up to a ceiling), so
+   * the count can sit well above five.
+   */
   minSources?: number;
   /** Overrides SUMMARIZER for this run. */
   providerId?: string;
@@ -30,6 +47,13 @@ export type GenerateResult = {
   stories: StoryDraft[];
   candidateCount: number;
   clusterCount: number;
+  coverageLanes: number;
+  tolerance: {
+    minSources: number;
+    minOverlap: number;
+    windowHours: number;
+    relaxed: boolean;
+  };
   providerRequested: string;
   providerUsed: string;
   fellBack: boolean;
@@ -94,23 +118,88 @@ export async function loadCandidates(
 }
 
 /**
- * Builds a daily brief from stored articles using the active summariser.
+ * Builds a daily brief from stored articles.
  *
- * This is the unattended path — what a scheduled job runs. With the rules
- * provider it produces a corroborated multi-source extract; once Ollama is
- * reachable the same clusters are written up as prose instead.
+ * Clustering and tagging stay on the rules engine. The configured LLM, if
+ * reachable, writes each brief item and the bottom line from those clusters.
+ * If the model host is down, the same clusters are written extractively.
  */
 export async function generateBrief(options: GenerateOptions = {}): Promise<GenerateResult> {
+  return exclusive(() => generateBriefInner(options));
+}
+
+type ToleranceStep = { minSources: number; minOverlap: number };
+
+function relaxationLadder(startSources: number): ToleranceStep[] {
+  const steps: ToleranceStep[] = [
+    { minSources: startSources, minOverlap: 0.38 },
+    { minSources: Math.min(startSources, 3), minOverlap: 0.34 },
+    { minSources: 2, minOverlap: 0.3 },
+  ];
+  const seen = new Set<string>();
+  return steps.filter((step) => {
+    if (step.minSources > startSources) return false;
+    const key = `${step.minSources}:${step.minOverlap}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function generateBriefInner(options: GenerateOptions = {}): Promise<GenerateResult> {
+  const startedAt = new Date();
   const date = options.date ?? todayUtc();
-  const maxStories = options.maxStories ?? 7;
-  const minSources = options.minSources ?? 4;
+  const ceiling = Math.max(options.maxStories ?? BRIEF_CEILING, MIN_BRIEF_STORIES);
+  const startSources = options.minSources ?? 4;
+  const startWindow = options.windowHours ?? 72;
   const { provider, health, fellBack, requestedId } = await resolveProvider(options.providerId);
 
-  const candidates = await loadCandidates(date, options.windowHours ?? 72);
-  const clusters = clusterArticles(candidates, {
-    maxClusters: maxStories,
-    minSources,
-  });
+  const steps = relaxationLadder(startSources);
+  const strictStep = steps[0]!;
+  let windowHours = startWindow;
+  let candidates = await loadCandidates(date, windowHours);
+  let used = strictStep;
+
+  function pool(cands: ClusterCandidate[], step: ToleranceStep): StoryCluster[] {
+    return clusterArticles(cands, {
+      maxClusters: ceiling,
+      minSources: step.minSources,
+      minOverlap: step.minOverlap,
+    });
+  }
+
+  let clusters = pickBriefClusters(pool(candidates, strictStep), ceiling);
+
+  if (!briefIsAdequate(clusters)) {
+    for (const step of steps.slice(1)) {
+      used = step;
+      clusters = fillBriefToFloor(clusters, pool(candidates, step), ceiling);
+      if (briefIsAdequate(clusters)) break;
+    }
+  }
+
+  if (!briefIsAdequate(clusters) && options.windowHours == null) {
+    windowHours = 120;
+    candidates = await loadCandidates(date, windowHours);
+    clusters = pickBriefClusters(pool(candidates, strictStep), ceiling);
+    used = strictStep;
+    if (!briefIsAdequate(clusters)) {
+      for (const step of steps.slice(1)) {
+        used = step;
+        clusters = fillBriefToFloor(clusters, pool(candidates, step), ceiling);
+        if (briefIsAdequate(clusters)) break;
+      }
+    }
+  }
+
+  const relaxed =
+    used.minSources < startSources || used.minOverlap < 0.38 || windowHours > startWindow;
+  if (relaxed) {
+    console.info(
+      `[brief] relaxed tolerance to ${used.minSources} sources / overlap ${used.minOverlap}` +
+        ` / ${windowHours}h window (${clusters.length} stories, ${coverageLanesOf(clusters).size} lanes)`,
+    );
+  }
 
   const stories: StoryDraft[] = [];
   for (let i = 0; i < clusters.length; i++) {
@@ -161,7 +250,7 @@ export async function generateBrief(options: GenerateOptions = {}): Promise<Gene
     await writeBrief({ date, title, bluf, source, stories });
   }
 
-  return {
+  const result: GenerateResult = {
     date,
     title,
     bluf,
@@ -169,12 +258,42 @@ export async function generateBrief(options: GenerateOptions = {}): Promise<Gene
     stories,
     candidateCount: candidates.length,
     clusterCount: clusters.length,
+    coverageLanes: coverageLanesOf(clusters).size,
+    tolerance: {
+      minSources: used.minSources,
+      minOverlap: used.minOverlap,
+      windowHours,
+      relaxed,
+    },
     providerRequested: requestedId,
     providerUsed: provider.id,
     fellBack,
     providerDetail: health.detail,
     written: !options.dryRun && stories.length > 0,
   };
+
+  await recordRun({
+    kind: "brief",
+    startedAt,
+    durationMs: Date.now() - startedAt.getTime(),
+    ok: true,
+    provider: provider.id,
+    model: provider.model,
+    stories: stories.length,
+    fellBack,
+    detail:
+      [
+        health.detail,
+        relaxed
+          ? `relaxed to ${used.minSources} sources, overlap ${used.minOverlap}, ${windowHours}h`
+          : `${clusters.length} stories / ${coverageLanesOf(clusters).size} lanes`,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+  });
+  if (!options.dryRun) await markBriefRan(startedAt);
+
+  return result;
 }
 
 /**

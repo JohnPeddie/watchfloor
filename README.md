@@ -75,7 +75,7 @@ To run it on a Linux server and reach it from anywhere on your network, see
 | `npm run db:seed` | Re-seed the sample Global Radar Report |
 | `npm run ingest` | CLI RSS ingest |
 | `npm run brief` | Build today's brief (authored file if present, else generated) |
-| `npm run summarize` | Re-summarise articles with the active provider |
+| `npm run summarize` | Re-apply extractive rules analysis to stored articles |
 | `npm run enrich` | Backfill body text, images, analysis and geocoding on stored articles |
 | `npm run reclassify` | Re-apply tag/precedence rules to stored articles |
 | `npm run stats` | Report enrichment coverage |
@@ -96,30 +96,24 @@ npm run summarize -- --all             # re-do everything
 
 ## How summarisation works
 
-There are two products — a per-article read and the daily brief — and both go
-through one provider interface in
-[`src/lib/summarize/types.ts`](src/lib/summarize/types.ts). Swapping the engine
-is an environment variable, not a code change.
+There are two products, and they do not share an engine.
 
-| Provider | `SUMMARIZER` | Behaviour |
+- **Each article** is tagged and summarised by the rules engine: keyword
+  classification plus extractive sentences. Collection stays fast and offline.
+- **The daily brief** is the only LLM job. Clusters of corroborating reports
+  are handed to the local model, which writes the items and the bottom line.
+  If the host is down, the same clusters are written extractively instead.
+
+| Provider | `SUMMARIZER` | What the LLM writes |
 |---|---|---|
-| Rules engine | `rules` (default) | Frequency-scored sentence extraction plus tag-driven implication templates. Offline, instant, always available. |
-| Ollama | `ollama` | A local LLM writes the analysis, the implication, each brief story and the bottom line. |
+| Rules engine | `rules` (default) | Nothing — brief items are extractive too. |
+| Ollama | `ollama` | Daily brief items and the bottom line. |
+| LM Studio / OpenAI-compat | `openai` or `lmstudio` | Same, via `/v1/chat/completions` (LM Studio on port 1234). |
 
-Two properties make this safe to leave pointed at Ollama permanently:
+Leave `SUMMARIZER` pointed at the LLM permanently: if the host is off, the
+brief falls back to rules and the dashboard keeps working.
 
-- **Automatic fallback.** Every run probes the provider first. If the model
-  host is off, unreachable, or missing the model, the run degrades to the rules
-  engine rather than failing, and says so. The dashboard's Summarisation card
-  shows when this has happened.
-- **Provenance.** Each article records which provider wrote its analysis in
-  `analysisSource`. Ingest never overwrites a summary from a better provider
-  with a rule-generated one, and `npm run summarize` targets only what is
-  missing or stale — so enabling Ollama upgrades the backlog and later runs
-  become no-ops.
-
-Ingest deliberately stays on the offline engine to keep collection fast; the
-LLM runs as a separate pass.
+Ingest never calls the model. `npm run brief` is the LLM pass.
 
 ### Authoring a brief by hand
 
@@ -132,6 +126,27 @@ substring, which populates "Related reporting" in the detail sheet.
 With no authored file, `npm run brief` clusters the last 30 hours of reporting
 by headline overlap, shared location and shared themes, ranks the clusters by
 urgency, corroboration and standing relevance, and writes up the top seven.
+
+### Enabling LM Studio
+
+In LM Studio: load the model, open **Developer**, start the local server
+(port **1234**). Turn **reasoning / thinking** off — Watchfloor needs a JSON
+object, not a chain of thought.
+
+```
+SUMMARIZER=lmstudio
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_MODEL=
+LLM_TIMEOUT_MS=300000
+```
+
+Leave `OPENAI_MODEL` empty to use whatever is loaded. Pin it to the id from
+`GET http://localhost:1234/v1/models` if you run more than one.
+
+```bash
+curl -s localhost:3050/api/summarizer   # degraded: false, openai reachable
+npm run brief -- --auto                 # LLM writes today's brief items
+```
 
 ### Enabling Ollama
 
@@ -147,7 +162,7 @@ OLLAMA_MODEL=llama3.1:8b
 
 ```bash
 curl -s localhost:3050/api/summarizer   # confirm reachable, not degraded
-npm run summarize -- --limit=50         # upgrade existing summaries
+npm run brief -- --auto
 ```
 
 Full network setup, including binding Ollama to the LAN, is in

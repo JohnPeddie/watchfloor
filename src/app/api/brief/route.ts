@@ -3,10 +3,13 @@ import { prisma } from "@/lib/db";
 import { parseJsonArray, toBriefSourceDTO, toBriefStoryDTO } from "@/lib/serializers";
 import { importAuthoredBrief, loadAuthoredBrief } from "@/lib/brief/authored";
 import { generateBrief, todayUtc } from "@/lib/brief/generate";
+import { startScheduler } from "@/lib/scheduler";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
+  startScheduler();
   const date = req.nextUrl.searchParams.get("date");
 
   const brief = date
@@ -60,6 +63,7 @@ export async function GET(req: NextRequest) {
  * instead of shelling into the container.
  */
 export async function POST(req: NextRequest) {
+  startScheduler();
   const body = (await req.json().catch(() => ({}))) as {
     date?: string;
     auto?: boolean;
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const result = await generateBrief({ date, maxStories: body.maxStories, minSources: 4 });
+  const result = await generateBrief({ date, maxStories: body.maxStories });
   return NextResponse.json({
     mode: "generated",
     date: result.date,
@@ -84,6 +88,8 @@ export async function POST(req: NextRequest) {
     fellBack: result.fellBack,
     providerDetail: result.providerDetail,
     stories: result.stories.length,
+    coverageLanes: result.coverageLanes,
+    tolerance: result.tolerance,
     candidates: result.candidateCount,
   });
 }

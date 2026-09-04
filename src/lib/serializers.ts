@@ -1,4 +1,5 @@
 import type { Precedence, Tag } from "./classify";
+import type { WatchfloorSettings } from "./settings-types";
 
 export type ArticleDTO = {
   id: string;
@@ -85,6 +86,53 @@ export type SummarizerStatus = {
   configured: string;
   degraded: boolean;
   providers: ProviderHealthDTO[];
+};
+
+/** Live ops snapshot for the settings sheet: schedules plus today's usage. */
+export type OpsSnapshot = {
+  timezone: string;
+  settings: WatchfloorSettings;
+  schedule: {
+    ingestDue: boolean;
+    briefDue: boolean;
+    nextIngestAt: string | null;
+    nextBriefAt: string | null;
+    lastIngestAt: string | null;
+    lastBriefAt: string | null;
+  };
+  collection: {
+    holdings: number;
+    pulledToday: number;
+    createdToday: number;
+    updatedToday: number;
+    ingestRunsToday: number;
+    lastIngestDurationMs: number | null;
+    lastIngestOk: boolean | null;
+  };
+  llm: {
+    configured: string;
+    reachable: boolean;
+    model: string | null;
+    label: string | null;
+    detail: string | null;
+    probeMs: number | null;
+    callsToday: number;
+    promptTokensToday: number;
+    completionTokensToday: number;
+    totalTokensToday: number;
+    durationMsToday: number;
+    lastCallMs: number | null;
+    lastModel: string | null;
+  };
+  brief: {
+    runsToday: number;
+    lastDurationMs: number | null;
+    lastProvider: string | null;
+    lastFellBack: boolean | null;
+    lastStories: number | null;
+    lastOk: boolean | null;
+    lastModel: string | null;
+  };
 };
 
 export type GlobePin = {

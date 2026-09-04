@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon, WatchfloorMark } from "@/components/Icon";
 import { dtg } from "@/lib/dtg";
 import { useTheme } from "@/lib/use-theme";
+import { FLOOR_VIEWS, type FloorView } from "@/lib/floor";
 
 type AppBarProps = {
   query: string;
@@ -13,6 +14,11 @@ type AppBarProps = {
   lastIngestAt: string | null;
   total: number;
   flashCount: number;
+  view?: FloorView;
+  onViewChange?: (view: FloorView) => void;
+  showViews?: boolean;
+  /** Cover screen, or the inner screen in landscape — keep to a single row. */
+  dense?: boolean;
 };
 
 export function AppBar({
@@ -23,6 +29,10 @@ export function AppBar({
   lastIngestAt,
   total,
   flashCount,
+  view,
+  onViewChange,
+  showViews = false,
+  dense = false,
 }: AppBarProps) {
   const [now, setNow] = useState<Date | null>(null);
   const { theme, toggleTheme } = useTheme();
@@ -39,45 +49,64 @@ export function AppBar({
 
   return (
     <header
-      className="relative z-30 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:gap-4 sm:px-4 sm:py-2.5"
+      className={`relative z-30 flex shrink-0 items-center gap-2 ${
+        dense ? "px-2 py-1.5" : "gap-3 px-3 py-2 sm:px-4"
+      }`}
       style={{
         background: "var(--md-container)",
         boxShadow: "var(--elev-2)",
-        paddingTop: "max(0.5rem, env(safe-area-inset-top))",
+        paddingTop: "max(0.4rem, env(safe-area-inset-top))",
+        paddingLeft: "max(0.5rem, env(safe-area-inset-left))",
+        paddingRight: "max(0.5rem, env(safe-area-inset-right))",
       }}
     >
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex shrink-0 items-center gap-2">
         <WatchfloorMark />
         <div className="leading-tight">
           <div className="md-title-lg text-[var(--md-on-surface)]">Watchfloor</div>
-          <div className="md-label-sm hidden sm:block">All-source intelligence</div>
+          {!dense && (
+            <div className="md-label-sm hidden lg:block">All-source intelligence</div>
+          )}
         </div>
       </div>
 
-      <div className="hidden max-w-[420px] flex-1 md:block">
-        <label className="md-search">
-          <Icon name="search" size={18} />
-          <input
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search reporting, sources, locations"
-            aria-label="Search reporting"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => onQueryChange("")}
-              className="md-icon-btn"
-              style={{ width: 28, height: 28 }}
-              aria-label="Clear search"
-            >
-              <Icon name="close" size={16} />
-            </button>
-          )}
-        </label>
+      {showViews && view && onViewChange && (
+        <nav className="min-w-0 shrink-0" aria-label="Watchfloor views">
+          <div
+            className="flex items-center gap-0.5 overflow-x-auto rounded-full p-0.5"
+            style={{ background: "var(--md-container-high)" }}
+          >
+            {FLOOR_VIEWS.map((item) => {
+              const active = item.id === view;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onViewChange(item.id)}
+                  aria-current={active ? "page" : undefined}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[12.5px] font-semibold"
+                  style={{
+                    background: active ? "var(--md-secondary-container)" : "transparent",
+                    color: active
+                      ? "var(--md-on-secondary-container)"
+                      : "var(--md-on-surface-variant)",
+                  }}
+                >
+                  <Icon name={item.icon} size={15} />
+                  <span className="hidden min-[900px]:inline">{item.label}</span>
+                  <span className="min-[900px]:hidden">{item.short}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <SearchField query={query} onQueryChange={onQueryChange} compact={dense || showViews} />
       </div>
 
-      <div className="ml-auto flex items-center gap-2 sm:gap-4">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
         <div className="hidden items-center gap-4 lg:flex">
           <Stat label="Holdings" value={`${total}`} />
           <Stat
@@ -94,7 +123,7 @@ export function AppBar({
         </div>
 
         <div
-          className="hidden items-center gap-2 rounded-full px-3 py-1.5 sm:flex"
+          className="hidden items-center gap-2 rounded-full px-3 py-1.5 lg:flex"
           style={{ background: "var(--md-primary-container)" }}
         >
           <Icon name="shield" size={16} className="text-[var(--md-on-primary-container)]" />
@@ -119,34 +148,11 @@ export function AppBar({
           onClick={onIngest}
           disabled={ingesting}
           aria-label={ingesting ? "Collecting" : "Collect"}
+          style={dense ? { height: 36, padding: "0 12px" } : undefined}
         >
           <Icon name="refresh" size={18} className={ingesting ? "md-pulse" : ""} />
-          <span className="hidden sm:inline">{ingesting ? "Collecting" : "Collect"}</span>
+          <span className="hidden min-[900px]:inline">{ingesting ? "Collecting" : "Collect"}</span>
         </button>
-      </div>
-
-      {/* Search moves to its own row on phones, where it cannot share the bar. */}
-      <div className="w-full md:hidden">
-        <label className="md-search">
-          <Icon name="search" size={18} />
-          <input
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search reporting"
-            aria-label="Search reporting"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => onQueryChange("")}
-              className="md-icon-btn"
-              style={{ width: 28, height: 28 }}
-              aria-label="Clear search"
-            >
-              <Icon name="close" size={16} />
-            </button>
-          )}
-        </label>
       </div>
 
       {ingesting && (
@@ -155,6 +161,39 @@ export function AppBar({
         </div>
       )}
     </header>
+  );
+}
+
+function SearchField({
+  query,
+  onQueryChange,
+  compact = false,
+}: {
+  query: string;
+  onQueryChange: (q: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label className={`md-search ${compact ? "" : "max-w-[520px]"}`}>
+      <Icon name="search" size={18} />
+      <input
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        placeholder={compact ? "Search reporting" : "Search reporting, sources, locations"}
+        aria-label="Search reporting"
+      />
+      {query && (
+        <button
+          type="button"
+          onClick={() => onQueryChange("")}
+          className="md-icon-btn"
+          style={{ width: 28, height: 28 }}
+          aria-label="Clear search"
+        >
+          <Icon name="close" size={16} />
+        </button>
+      )}
+    </label>
   );
 }
 

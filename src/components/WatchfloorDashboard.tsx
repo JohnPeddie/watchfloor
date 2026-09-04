@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { FEEDS } from "../../config/feeds";
 import { AppBar } from "@/components/AppBar";
 import { LaneChips, NavRail } from "@/components/NavRail";
@@ -11,10 +11,11 @@ import { TrafficPane } from "@/components/TrafficPane";
 import { InsightPane } from "@/components/InsightPane";
 import { DetailSheet } from "@/components/DetailSheet";
 import { HelpButton } from "@/components/HelpButton";
-import { MinimisedPane, PaneSizeButton } from "@/components/PaneChrome";
 import { Icon } from "@/components/Icon";
-import { useIsCompact, useIsTablet } from "@/lib/use-media";
+import { SettingsSheet } from "@/components/SettingsSheet";
+import { useFloorKind, useIsShortInner } from "@/lib/use-media";
 import { buildSourceWeb } from "@/lib/source-web";
+import type { FloorView } from "@/lib/floor";
 import type { MarketQuote } from "@/lib/markets";
 import type {
   ArticleDTO,
@@ -53,21 +54,19 @@ export function WatchfloorDashboard() {
   const [selectedArticle, setSelectedArticle] = useState<ArticleDTO | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; altitude?: number } | null>(null);
   const [ingesting, setIngesting] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [showImagery, setShowImagery] = useState(true);
   const [showBoundaries, setShowBoundaries] = useState(true);
   const [pane, setPane] = useState<PaneId>("brief");
+  const [view, setView] = useState<FloorView>("brief");
   const [summarizer, setSummarizer] = useState<SummarizerStatus | null>(null);
-  // Collapsed panes on tablet and desktop; full-bleed pane on a phone.
-  const [minimised, setMinimised] = useState({ map: false, traffic: false });
-  const [immersive, setImmersive] = useState(false);
-  const [detailMaximised, setDetailMaximised] = useState(false);
-  const isCompact = useIsCompact();
-  const isTablet = useIsTablet();
-
-  // Full-bleed only makes sense while one pane owns the screen.
-  useEffect(() => {
-    if (!isCompact) setImmersive(false);
-  }, [isCompact]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const floor = useFloorKind();
+  const shortInner = useIsShortInner();
+  const isCompact = floor === "cover";
+  const isInner = floor === "inner";
+  const isDesktop = floor === "desktop";
+  const denseChrome = isCompact || (isInner && shortInner);
 
   const loadFiltered = useCallback(async () => {
     const params = new URLSearchParams({ limit: "150" });
@@ -128,7 +127,7 @@ export function WatchfloorDashboard() {
   );
 
   const globePins: GlobePin[] = useMemo(() => {
-    if (sourceWeb && sourceWeb.links.length > 0) {
+    if (selectedStory && sourceWeb && sourceWeb.links.length > 0) {
       return sourceWeb.pins;
     }
 
@@ -159,8 +158,10 @@ export function WatchfloorDashboard() {
         imageUrl: a.imageUrl,
       }));
 
+    if (isInner && view === "articles") return articlePins;
+    if (isInner && view === "brief") return storyPins;
     return [...storyPins, ...articlePins];
-  }, [brief, articles, sourceWeb]);
+  }, [brief, articles, sourceWeb, selectedStory, isInner, view]);
 
   const globeLinks: GlobeLink[] = sourceWeb?.links ?? [];
 
@@ -197,30 +198,37 @@ export function WatchfloorDashboard() {
   function closeDetail() {
     setSelectedStory(null);
     setSelectedArticle(null);
-    setDetailMaximised(false);
   }
 
-  /**
-   * The assessment takes the reporting-stream slot so the globe stays on
-   * screen with the source web. The globe is restored if it had been minimised.
-   */
+  function changeView(next: FloorView) {
+    setView(next);
+    setPane(next);
+    if (next === "markets") {
+      setSelectedStory(null);
+      setSelectedArticle(null);
+    } else if (next === "brief") {
+      setSelectedArticle(null);
+    } else {
+      setSelectedStory(null);
+    }
+  }
+
   function onSelectStory(story: BriefStoryDTO) {
     setSelectedStory(story);
     setSelectedArticle(null);
-    setDetailMaximised(false);
+    setView("brief");
+    setPane("brief");
     const web = buildSourceWeb(story);
     if (web.hub) flyTo(web.hub.lat, web.hub.lng, 2.35);
     else flyTo(story.lat, story.lng, 2.35);
-    setMinimised((m) => (m.map ? { ...m, map: false } : m));
-    if (isCompact) setPane("map");
   }
 
   function onSelectArticle(article: ArticleDTO) {
     setSelectedArticle(article);
     setSelectedStory(null);
-    setDetailMaximised(false);
+    setView("articles");
+    setPane("articles");
     flyTo(article.lat, article.lng);
-    setMinimised((m) => (m.map ? { ...m, map: false } : m));
   }
 
   function onSelectPin(pin: GlobePin) {
@@ -249,128 +257,104 @@ export function WatchfloorDashboard() {
     }
   }
 
+  async function onRebuildBrief() {
+    setRebuilding(true);
+    try {
+      await fetch("/api/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto: true }),
+      });
+      await loadBase();
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
   const plottedImages = globePins.filter((p) => p.imageUrl).length;
   const globeCaption =
     globeLinks.length > 0
       ? `${globeLinks.length} sources feeding ${selectedStory?.placeLabel ?? "this item"}`
       : `${globePins.length} contacts · ${plottedImages} with imagery · live day/night`;
 
-  /** A column child either shares the space or shrinks to its own height. */
-  const fill = (collapsed: boolean) =>
-    collapsed ? "shrink-0" : "min-h-0 flex-1";
-
   const briefPane = (
     <BriefPane
       brief={brief}
       selectedStoryId={selectedStory?.id ?? null}
       onSelectStory={onSelectStory}
+      rebuilding={rebuilding}
+      onRebuild={onRebuildBrief}
     />
   );
 
-  const trafficPane =
-    minimised.traffic && !isCompact && !reading ? (
-      <MinimisedPane
-        title="Reporting stream"
-        detail={`${matched} items`}
-        onRestore={() => setMinimised((m) => ({ ...m, traffic: false }))}
-      />
-    ) : (
-      <TrafficPane
-        articles={articles}
-        matched={matched}
-        total={total}
-        selectedArticleId={selectedArticle?.id ?? null}
-        onSelectArticle={onSelectArticle}
-        activeTag={activeTag}
-        actions={
-          <PaneSizeButton
-            compact={isCompact}
-            active={immersive}
-            label="reporting stream"
-            onToggle={() =>
-              isCompact
-                ? setImmersive((v) => !v)
-                : setMinimised((m) => ({ ...m, traffic: true }))
-            }
-          />
-        }
-      />
-    );
+  const trafficPane = (
+    <TrafficPane
+      articles={articles}
+      matched={matched}
+      total={total}
+      selectedArticleId={selectedArticle?.id ?? null}
+      onSelectArticle={onSelectArticle}
+      activeTag={activeTag}
+    />
+  );
 
-  const mapPane =
-    minimised.map && !isCompact ? (
-      <MinimisedPane
-        title="Geospatial plot"
-        detail={`${globePins.length} contacts`}
-        onRestore={() => setMinimised((m) => ({ ...m, map: false }))}
-      />
-    ) : (
-      <section className="md-pane relative h-full min-h-0 overflow-hidden">
-        <div
-          className="on-globe pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between p-3"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(11,14,17,0.92) 0%, rgba(11,14,17,0.66) 55%, rgba(11,14,17,0) 100%)",
-          }}
-        >
-          <div className="min-w-0">
-            <div className="md-title-lg">Geospatial plot</div>
-            <div className="md-label-sm truncate">{globeCaption}</div>
-          </div>
-          <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+  const mapPane = (
+    <section className="md-pane relative h-full min-h-0 overflow-hidden">
+      <div
+        className="on-globe pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between p-3"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(11,14,17,0.92) 0%, rgba(11,14,17,0.66) 55%, rgba(11,14,17,0) 100%)",
+        }}
+      >
+        <div className="min-w-0">
+          <div className="md-title-lg">Geospatial plot</div>
+          <div className="md-label-sm truncate">{globeCaption}</div>
+        </div>
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            className="md-chip md-chip-filter"
+            aria-pressed={showImagery}
+            onClick={() => setShowImagery((v) => !v)}
+          >
+            <Icon name="layers" size={13} />
+            <span className="globe-chip-label">Imagery</span>
+          </button>
+          <button
+            type="button"
+            className="md-chip md-chip-filter"
+            aria-pressed={showBoundaries}
+            onClick={() => setShowBoundaries((v) => !v)}
+          >
+            <Icon name="public" size={13} />
+            <span className="globe-chip-label">Borders</span>
+          </button>
+          {focus && (
             <button
               type="button"
               className="md-chip md-chip-filter"
-              aria-pressed={showImagery}
-              onClick={() => setShowImagery((v) => !v)}
-            >
-              <Icon name="layers" size={13} />
-              <span className="hidden sm:inline">Imagery</span>
-            </button>
-            <button
-              type="button"
-              className="md-chip md-chip-filter"
-              aria-pressed={showBoundaries}
-              onClick={() => setShowBoundaries((v) => !v)}
+              onClick={() => setFocus(null)}
             >
               <Icon name="public" size={13} />
-              <span className="hidden sm:inline">Borders</span>
+              <span className="globe-chip-label">Reset</span>
             </button>
-            {focus && (
-              <button
-                type="button"
-                className="md-chip md-chip-filter"
-                onClick={() => setFocus(null)}
-              >
-                <Icon name="public" size={13} />
-                <span className="hidden sm:inline">Reset view</span>
-              </button>
-            )}
-            <HelpButton topic="globe" />
-            <PaneSizeButton
-              compact={isCompact}
-              active={immersive}
-              label="globe"
-              onToggle={() =>
-                isCompact
-                  ? setImmersive((v) => !v)
-                  : setMinimised((m) => ({ ...m, map: true }))
-              }
-            />
-          </div>
+          )}
+          <HelpButton topic="globe" />
         </div>
+      </div>
 
-        <GlobeView
-          pins={globePins}
-          links={globeLinks}
-          focus={focus}
-          selectedId={selectedPinId}
-          onSelectPin={onSelectPin}
-          showImagery={showImagery && globeLinks.length === 0}
-          showBoundaries={showBoundaries}
-        />
-      </section>
-    );
+      <GlobeView
+        pins={globePins}
+        links={globeLinks}
+        focus={focus}
+        selectedId={selectedPinId}
+        onSelectPin={onSelectPin}
+        showImagery={showImagery && globeLinks.length === 0}
+        showBoundaries={showBoundaries}
+      />
+    </section>
+  );
 
   const reader = (
     <DetailSheet
@@ -380,12 +364,8 @@ export function WatchfloorDashboard() {
       relatedArticles={selectedArticle ? [] : relatedArticles}
       onClose={closeDetail}
       onOpenArticle={onSelectArticle}
-      maximised={detailMaximised}
-      onToggleMaximise={() => setDetailMaximised((v) => !v)}
     />
   );
-
-  const belowGlobe = reading ? reader : trafficPane;
 
   const insightPane = (
     <InsightPane
@@ -396,102 +376,175 @@ export function WatchfloorDashboard() {
       precedenceCounts={precedenceCounts}
       feedStatus={feedStatus}
       summarizer={summarizer}
+      columns={isInner && view === "markets" ? 2 : 1}
     />
   );
 
-  const panesById: Record<PaneId, React.ReactNode> = {
+  const listPane = view === "articles" ? trafficPane : briefPane;
+  const readingThisView =
+    (view === "brief" && Boolean(selectedStory)) ||
+    (view === "articles" && Boolean(selectedArticle));
+
+  function splitWithGlobe(list: ReactNode) {
+    return (
+      <div className={`flex min-h-0 flex-1 ${denseChrome ? "gap-1.5" : "gap-2 sm:gap-3"}`}>
+        <div
+          className="flex min-h-0 min-w-0 flex-col"
+          style={{
+            flex: "0 0 auto",
+            width: readingThisView ? "min(60%, 560px)" : "min(52%, 440px)",
+          }}
+        >
+          <StackSlot grow={1}>{readingThisView ? reader : list}</StackSlot>
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <StackSlot grow={1}>{mapPane}</StackSlot>
+        </div>
+      </div>
+    );
+  }
+
+  /** Original PC shell: globe on top, stream (or the open item) underneath. */
+  function pcMiddle() {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <StackSlot grow={1.35}>{mapPane}</StackSlot>
+        <StackSlot grow={1}>{reading ? reader : trafficPane}</StackSlot>
+      </div>
+    );
+  }
+
+  const panesById: Record<PaneId, ReactNode> = {
     brief: briefPane,
+    articles: trafficPane,
     map: mapPane,
-    traffic: trafficPane,
-    insight: insightPane,
+    markets: insightPane,
   };
 
-  const middle = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3">
-      {reading && detailMaximised ? (
-        <div className="min-h-0 flex-1">{reader}</div>
-      ) : (
-        <>
-          <div className={fill(minimised.map)}>{mapPane}</div>
-          <div className={fill(minimised.traffic && !reading)}>{belowGlobe}</div>
-        </>
-      )}
-    </div>
-  );
-
-  /**
-   * Each column is its own flex stack rather than a shared grid, so collapsing
-   * one pane hands its space to the pane above or below it and leaves the
-   * other column alone.
-   */
-  let layout: React.ReactNode;
-  if (isCompact) {
-    layout = reading ? (
-      detailMaximised ? (
-        <div className="min-h-0 flex-1">{reader}</div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className="min-h-0 flex-[1.2]">{mapPane}</div>
-          <div className="min-h-0 flex-1">{reader}</div>
-        </div>
-      )
-    ) : (
-      <div className="min-h-0 flex-1">{panesById[pane]}</div>
-    );
-  } else if (isTablet) {
+  let layout: ReactNode;
+  if (floor === "cover") {
+    const coverReading = reading && (pane === "brief" || pane === "articles");
     layout = (
-      <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
-        <div className="flex min-h-0 w-[min(42%,400px)] shrink-0 flex-col">
-          {briefPane}
-        </div>
-        {middle}
+      <div className="min-h-0 flex-1">{coverReading ? reader : panesById[pane]}</div>
+    );
+  } else if (floor === "inner") {
+    layout =
+      view === "markets" ? (
+        <div className="min-h-0 flex-1">{insightPane}</div>
+      ) : (
+        splitWithGlobe(listPane)
+      );
+  } else if (floor === "laptop") {
+    layout = (
+      <div className="flex min-h-0 flex-1 gap-3">
+        <div className="flex min-h-0 w-[min(42%,400px)] shrink-0 flex-col">{briefPane}</div>
+        {pcMiddle()}
       </div>
     );
   } else {
     layout = (
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-h-0 w-[320px] shrink-0">{briefPane}</div>
-        {middle}
-        <div className="min-h-0 w-[336px] shrink-0">{insightPane}</div>
+        {pcMiddle()}
+        <div className="min-h-0 w-[336px] shrink-0 overflow-y-auto">{insightPane}</div>
       </div>
     );
   }
 
-  return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      {!immersive && (
-        <div className="shrink-0">
-          <AppBar
-            query={query}
-            onQueryChange={setQuery}
-            onIngest={onIngest}
-            ingesting={ingesting}
-            lastIngestAt={lastIngestAt}
-            total={total}
-            flashCount={precedenceCounts.FLASH ?? 0}
-          />
+  const showLaneChips =
+    floor === "laptop" || (floor === "inner" && view === "articles") || (floor === "cover" && pane === "articles" && !reading);
 
+  return (
+    <div
+      className="flex h-dvh flex-col overflow-hidden"
+      data-floor={floor === "laptop" ? "desktop" : floor}
+      data-short={shortInner ? "true" : undefined}
+    >
+      <div className="shrink-0">
+        <AppBar
+          query={query}
+          onQueryChange={setQuery}
+          onIngest={onIngest}
+          ingesting={ingesting}
+          lastIngestAt={lastIngestAt}
+          total={total}
+          flashCount={precedenceCounts.FLASH ?? 0}
+          view={view}
+          onViewChange={changeView}
+          showViews={isInner}
+          dense={denseChrome}
+        />
+
+        {showLaneChips && (
           <LaneChips activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex min-h-0 flex-1">
-        {!immersive && (
+        {isDesktop && (
           <NavRail activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
         )}
-
-        <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+        <main
+          className={`flex min-h-0 flex-1 flex-col ${
+            denseChrome ? "gap-1.5 p-1.5" : "gap-2 p-2 sm:gap-3 sm:p-3"
+          }`}
+          style={{
+            paddingLeft: "max(0.4rem, env(safe-area-inset-left))",
+            paddingRight: "max(0.4rem, env(safe-area-inset-right))",
+          }}
+        >
           {layout}
         </main>
       </div>
 
-      {!immersive && !reading && (
+      {isCompact && (
         <BottomNav
           active={pane}
-          onChange={setPane}
+          onChange={(next) => {
+            setPane(next);
+            if (next === "markets") closeDetail();
+            if (next !== "map") setView(next);
+          }}
           flashCount={precedenceCounts.FLASH ?? 0}
         />
       )}
+
+      {!(isCompact && reading && (pane === "brief" || pane === "articles")) && (
+        <button
+          type="button"
+          className="md-icon-btn"
+          style={{
+            position: "fixed",
+            left: isDesktop
+              ? 96
+              : "max(12px, env(safe-area-inset-left))",
+            bottom: isCompact
+              ? "calc(env(safe-area-inset-bottom) + 64px)"
+              : "max(12px, env(safe-area-inset-bottom))",
+            zIndex: 80,
+            width: 40,
+            height: 40,
+            background: "var(--md-container-high)",
+            boxShadow: "var(--elev-3)",
+            color: "var(--md-on-surface-variant)",
+          }}
+          aria-label="Open settings"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Icon name="settings" size={18} />
+        </button>
+      )}
+
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </div>
+  );
+}
+
+/** Flex child that keeps pane overflow inside a tablet column. */
+function StackSlot({ children, grow }: { children: ReactNode; grow: number }) {
+  return (
+    <div className="relative min-h-0 overflow-hidden" style={{ flex: `${grow} 1 0%` }}>
+      <div className="absolute inset-0">{children}</div>
     </div>
   );
 }

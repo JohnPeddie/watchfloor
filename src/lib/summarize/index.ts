@@ -1,22 +1,31 @@
 import { ollamaProvider } from "./ollama";
+import { openaiProvider } from "./openai";
 import { rulesProvider } from "./rules";
 import type { ProviderHealth, SummaryProvider } from "./types";
 
 export type { ArticleInput, ArticleSummary, StoryCluster, StoryDraft, SummaryProvider } from "./types";
 export { rulesProvider } from "./rules";
 export { ollamaProvider } from "./ollama";
+export { openaiProvider } from "./openai";
 
 const PROVIDERS: Record<string, SummaryProvider> = {
   rules: rulesProvider,
   ollama: ollamaProvider,
+  openai: openaiProvider,
+};
+
+const ALIASES: Record<string, string> = {
+  manual: "rules",
+  lmstudio: "openai",
+  "openai-compat": "openai",
 };
 
 /** Reads SUMMARIZER, defaulting to the always-available rules engine. */
 export function configuredProviderId(): string {
   const raw = (process.env.SUMMARIZER ?? "rules").toLowerCase().trim();
-  // "manual" was the v1 value and still appears in older .env files.
-  if (raw === "manual" || raw === "") return "rules";
-  return raw in PROVIDERS ? raw : "rules";
+  if (raw === "") return "rules";
+  const mapped = ALIASES[raw] ?? raw;
+  return mapped in PROVIDERS ? mapped : "rules";
 }
 
 export function getProvider(id = configuredProviderId()): SummaryProvider {
@@ -37,7 +46,8 @@ export type ResolvedProvider = {
  * The configured provider is probed first. If it cannot be reached — the model
  * host is off, the model was never pulled, the LAN is down — we degrade to the
  * rules engine rather than failing the run, and report that we did so. This is
- * what makes it safe to leave SUMMARIZER=ollama set permanently.
+ * what makes it safe to leave SUMMARIZER=openai (or ollama) set permanently.
+ * The LLM is only used to compose daily brief items, not per-article summaries.
  */
 export async function resolveProvider(id = configuredProviderId()): Promise<ResolvedProvider> {
   const requested = getProvider(id);

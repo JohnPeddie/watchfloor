@@ -6,6 +6,7 @@ import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
 import type { MarketQuote } from "@/lib/markets";
 import type { SummarizerStatus } from "@/lib/serializers";
+import { providerDisplay } from "@/lib/model-label";
 
 type InsightPaneProps = {
   markets: MarketQuote[];
@@ -15,6 +16,8 @@ type InsightPaneProps = {
   precedenceCounts: Record<string, number>;
   feedStatus: Array<{ code: string; name: string; online: boolean; count: number }>;
   summarizer: SummarizerStatus | null;
+  /** Side-by-side cards under the tablet globe. */
+  columns?: 1 | 2;
 };
 
 export function InsightPane({
@@ -25,12 +28,14 @@ export function InsightPane({
   precedenceCounts,
   feedStatus,
   summarizer,
+  columns = 1,
 }: InsightPaneProps) {
   const oil = markets.filter((m) => m.label.includes("Crude"));
   const rest = markets.filter((m) => !m.label.includes("Crude"));
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-0.5">
+      <div className={columns === 2 ? "grid grid-cols-2 gap-3" : "contents"}>
       <section className="md-pane shrink-0">
         <div className="md-pane-head">
           <div className="md-title-lg flex items-center gap-2">
@@ -66,7 +71,7 @@ export function InsightPane({
         </div>
       </section>
 
-      <section className="md-pane shrink-0">
+      <section className={`md-pane shrink-0${columns === 2 ? " col-span-2" : ""}`}>
         <div className="md-pane-head">
           <div className="md-title-lg">Precedence</div>
           <HelpButton topic="precedence" />
@@ -99,7 +104,7 @@ export function InsightPane({
         </div>
       </section>
 
-      <section className="md-pane shrink-0">
+      <section className={`md-pane shrink-0${columns === 2 ? " col-span-2" : ""}`}>
         <div className="md-pane-head">
           <div className="md-title-lg">Classification</div>
           <div className="flex shrink-0 items-center gap-1">
@@ -149,6 +154,7 @@ export function InsightPane({
       </section>
 
       {summarizer && <SummarizerCard status={summarizer} />}
+      </div>
     </div>
   );
 }
@@ -198,7 +204,7 @@ function SummarizerCard({ status }: { status: SummarizerStatus }) {
               }}
             />
             <span className="md-mono flex-1 truncate text-[11px] text-[var(--md-on-surface-variant)]">
-              {provider.model ? `${provider.id}:${provider.model}` : provider.id}
+              {providerDisplay(provider.id, provider.model)}
             </span>
             {provider.id === status.configured && (
               <span className="md-label-sm md-mono text-[var(--md-secondary)]">active</span>

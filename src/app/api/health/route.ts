@@ -46,6 +46,8 @@ export async function GET() {
         configured: process.env.SUMMARIZER ?? "rules",
         ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? null,
         ollamaModel: process.env.OLLAMA_MODEL ?? null,
+        openaiBaseUrl: process.env.OPENAI_BASE_URL ?? null,
+        openaiModel: process.env.OPENAI_MODEL ?? null,
       },
     });
   } catch (error) {

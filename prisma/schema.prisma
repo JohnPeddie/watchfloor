@@ -84,3 +84,24 @@ model Meta {
   key   String @id
   value String
 }
+
+model RunLog {
+  id               String   @id @default(cuid())
+  kind             String
+  startedAt        DateTime @default(now())
+  durationMs       Int      @default(0)
+  ok               Boolean  @default(true)
+  created          Int?
+  updated          Int?
+  skipped          Int?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  model            String?
+  provider         String?
+  stories          Int?
+  fellBack         Boolean?
+  detail           String?
+
+  @@index([kind, startedAt])
+}

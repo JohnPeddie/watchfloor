@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { GradeChip, PrecedenceChip, TagChips } from "@/components/Chips";
 import { Icon } from "@/components/Icon";
+import { MediaFrame } from "@/components/MediaFrame";
 import { dtg } from "@/lib/dtg";
 import type { ArticleDTO, BriefStoryDTO } from "@/lib/serializers";
 
@@ -13,15 +14,10 @@ type DetailSheetProps = {
   onClose: () => void;
   onOpenArticle: (article: ArticleDTO) => void;
   /**
-   * overlay — bottom sheet over the globe (desktop).
-   * pane — fills its layout slot. Maximise expands it across the middle column.
-   * screen — covers the viewport (phone reading).
+   * overlay — bottom sheet over the globe.
+   * pane — fills its layout slot (cover and inner).
    */
   variant?: "overlay" | "pane" | "screen";
-  onShowGlobe?: () => void;
-  /** When set, maximise is controlled by the layout (covers globe + stream). */
-  maximised?: boolean;
-  onToggleMaximise?: () => void;
 };
 
 export function DetailSheet({
@@ -31,19 +27,8 @@ export function DetailSheet({
   onClose,
   onOpenArticle,
   variant = "overlay",
-  onShowGlobe,
-  maximised: maximisedProp,
-  onToggleMaximise,
 }: DetailSheetProps) {
   const [activeImage, setActiveImage] = useState(0);
-  const [internalMax, setInternalMax] = useState(false);
-  const controlled = typeof maximisedProp === "boolean";
-  const maximised = controlled ? maximisedProp : internalMax;
-
-  function toggleMaximise() {
-    if (onToggleMaximise) onToggleMaximise();
-    else setInternalMax((v) => !v);
-  }
 
   useEffect(() => {
     setActiveImage(0);
@@ -51,13 +36,11 @@ export function DetailSheet({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (maximised) toggleMaximise();
-      else onClose();
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, maximised, onToggleMaximise]);
+  }, [onClose]);
 
   if (!story && !article) return null;
 
@@ -76,16 +59,14 @@ export function DetailSheet({
 
   const sources = story?.sources ?? [];
   const related = relatedArticles.length > 0 ? relatedArticles : [];
-  const filling = variant === "pane" || variant === "screen" || maximised;
+  const filling = variant === "pane" || variant === "screen";
 
   const shellClass =
     variant === "screen"
       ? "fixed inset-0 z-[110] flex flex-col overflow-hidden"
       : variant === "pane"
         ? "md-pane flex h-full min-h-0 flex-col overflow-hidden"
-        : maximised
-          ? "md-sheet fixed inset-0 z-[110] flex flex-col overflow-hidden"
-          : "md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]";
+        : "md-sheet absolute inset-2 z-40 flex flex-col overflow-hidden rounded-3xl lg:inset-x-3 lg:bottom-3 lg:top-auto lg:max-h-[74%]";
 
   return (
     <div
@@ -97,7 +78,7 @@ export function DetailSheet({
         paddingBottom: variant === "screen" ? "env(safe-area-inset-bottom)" : undefined,
       }}
       role="dialog"
-      aria-modal={variant !== "overlay" || maximised}
+      aria-modal={variant !== "overlay"}
       aria-label="Report detail"
     >
       <div
@@ -130,28 +111,6 @@ export function DetailSheet({
           )}
         </div>
         <div className="flex shrink-0 items-center">
-          {onShowGlobe && story && (
-            <button
-              type="button"
-              className="md-icon-btn"
-              onClick={onShowGlobe}
-              aria-label="Show sourcing on the globe"
-              title="Show sourcing on the globe"
-            >
-              <Icon name="public" size={19} />
-            </button>
-          )}
-          {variant !== "screen" && (
-            <button
-              type="button"
-              className="md-icon-btn"
-              onClick={toggleMaximise}
-              aria-label={maximised ? "Restore beside the globe" : "Expand across the middle"}
-              title={maximised ? "Restore beside the globe" : "Expand across the middle"}
-            >
-              <Icon name={maximised ? "fullscreen_exit" : "fullscreen"} size={19} />
-            </button>
-          )}
           <button type="button" className="md-icon-btn" onClick={onClose} aria-label="Close">
             <Icon name="close" size={20} />
           </button>
@@ -160,33 +119,20 @@ export function DetailSheet({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div
-          /* Full screen earns the two-column split sooner, and caps the line
-             length so the assessment stays readable on a wide monitor. */
           className={
             filling
-              ? "mx-auto grid max-w-[1180px] gap-5 p-4 sm:p-6 md:grid-cols-[minmax(0,380px)_minmax(0,1fr)]"
-              : "grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]"
+              ? "md-detail-body mx-auto grid max-w-[1180px] gap-5 p-4 sm:p-6"
+              : "md-detail-body grid gap-4 p-3 sm:p-4"
           }
         >
-          <div className="space-y-2">
-            <div
-              className="aspect-video w-full overflow-hidden rounded-2xl"
-              style={{ background: "var(--md-container-high)" }}
-            >
-              {images.length > 0 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={images[Math.min(activeImage, images.length - 1)]}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--md-outline)]">
-                  <Icon name="article" size={28} />
-                  <span className="md-label-sm">No imagery captured</span>
-                </div>
-              )}
-            </div>
+          <div className="min-w-0 space-y-2">
+            <MediaFrame
+              src={images[Math.min(activeImage, Math.max(images.length - 1, 0))] ?? null}
+              ratio="16 / 9"
+              className="w-full rounded-2xl"
+              iconSize={28}
+              emptyLabel="No imagery captured"
+            />
 
             {images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -195,8 +141,9 @@ export function DetailSheet({
                     key={src}
                     type="button"
                     onClick={() => setActiveImage(i)}
-                    className="h-14 w-20 shrink-0 overflow-hidden rounded-xl transition"
+                    className="shrink-0 rounded-xl transition"
                     style={{
+                      width: 80,
                       outline:
                         i === activeImage ? "2px solid var(--md-primary)" : "1px solid var(--md-outline-variant)",
                       outlineOffset: -1,
@@ -204,8 +151,7 @@ export function DetailSheet({
                     }}
                     aria-label={`Image ${i + 1}`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <MediaFrame src={src} className="w-full rounded-xl" />
                   </button>
                 ))}
               </div>
@@ -224,7 +170,7 @@ export function DetailSheet({
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div>
               <TagChips tags={tags} max={6} />
             </div>
@@ -299,20 +245,7 @@ export function DetailSheet({
                             onClick={() => onOpenArticle(a)}
                             className="flex min-w-0 flex-1 items-center gap-3 text-left"
                           >
-                            <div
-                              className="h-10 w-14 shrink-0 overflow-hidden rounded-lg"
-                              style={{ background: "var(--md-container-high)" }}
-                            >
-                              {a.imageUrl && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={a.imageUrl}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                  loading="lazy"
-                                />
-                              )}
-                            </div>
+                            <MediaFrame src={a.imageUrl} className="w-16 rounded-lg" />
                             <div className="min-w-0">
                               <div className="md-title line-clamp-1 text-[13px]">{a.title}</div>
                               <div className="md-label-sm md-mono">{a.sourceName}</div>

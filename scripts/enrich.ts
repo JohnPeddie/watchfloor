@@ -42,20 +42,12 @@ async function main() {
 
     const place = geocodeText(article.title, article.rawExcerpt ?? article.summary);
 
-    // Preserve summaries produced by a better provider (e.g. Ollama).
-    const hasBetterAnalysis =
-      Boolean(article.analysis) &&
-      Boolean(article.analysisSource) &&
-      article.analysisSource !== "rules";
-
-    const analysisFields = hasBetterAnalysis
-      ? {}
-      : {
-          analysis: summariseExtractive(bodyText, article.rawExcerpt ?? article.summary),
-          implication: deriveImplication(classification.tags, place?.label ?? null),
-          analysisSource: "rules",
-          analysedAt: new Date(),
-        };
+    const analysisFields = {
+      analysis: summariseExtractive(bodyText, article.rawExcerpt ?? article.summary),
+      implication: deriveImplication(classification.tags, place?.label ?? null),
+      analysisSource: "rules",
+      analysedAt: new Date(),
+    };
 
     await prisma.article.update({
       where: { id: article.id },

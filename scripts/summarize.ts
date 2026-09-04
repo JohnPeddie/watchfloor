@@ -1,16 +1,13 @@
 import { prisma } from "../src/lib/db";
 import { mapLimit } from "../src/lib/extract";
 import { parseJsonArray } from "../src/lib/serializers";
-import { resolveProvider } from "../src/lib/summarize";
+import { rulesProvider } from "../src/lib/summarize";
 import type { Tag } from "../src/lib/classify";
 
 /**
- * Re-summarises stored articles with the active provider.
- *
- * Default behaviour targets only what needs work: articles with no analysis,
- * or whose analysis came from a different provider than the one now
- * configured. So after pointing SUMMARIZER at Ollama, a single run upgrades
- * every rule-generated summary and later runs become no-ops.
+ * Re-applies the offline rules engine to stored articles (extractive
+ * analysis, tag-driven implication). Article text is never sent to the LLM;
+ * that is reserved for composing daily brief items via `npm run brief`.
  */
 function arg(name: string, fallback: number): number {
   const prefix = `--${name}=`;
@@ -22,36 +19,24 @@ function arg(name: string, fallback: number): number {
 async function main() {
   const all = process.argv.includes("--all");
   const limit = arg("limit", 0);
-  const { provider, health, fellBack, requestedId } = await resolveProvider();
-
-  if (fellBack) {
-    console.warn(
-      `! ${requestedId} unavailable: ${health.detail ?? "no detail"}`,
-      `\n  Falling back to ${provider.id}. Fix the host and re-run to upgrade summaries.`,
-    );
-  }
-
-  const source = provider.model ? `${provider.id}:${provider.model}` : provider.id;
-  // The LLM path is slow and sequentialish; the rules path is CPU-bound and cheap.
-  const concurrency = arg("concurrency", provider.id === "rules" ? 8 : 2);
 
   const articles = await prisma.article.findMany({
-    where: all ? {} : { OR: [{ analysis: null }, { analysisSource: { not: source } }] },
+    where: all ? {} : { OR: [{ analysis: null }, { analysisSource: { not: "rules" } }] },
     orderBy: { publishedAt: "desc" },
     ...(limit > 0 ? { take: limit } : {}),
   });
 
   console.log(
-    `Summarising ${articles.length} article(s) with ${source}` +
-      (all ? " (--all)" : " (missing or stale only)"),
+    `Summarising ${articles.length} article(s) with rules` +
+      (all ? " (--all)" : " (missing or non-rules only)"),
   );
 
   let updated = 0;
   let failed = 0;
 
-  await mapLimit(articles, concurrency, async (article) => {
+  await mapLimit(articles, 8, async (article) => {
     try {
-      const result = await provider.summariseArticle({
+      const result = await rulesProvider.summariseArticle({
         id: article.id,
         title: article.title,
         url: article.url,
@@ -69,7 +54,7 @@ async function main() {
         data: {
           analysis: result.analysis,
           implication: result.implication ?? article.implication,
-          analysisSource: source,
+          analysisSource: "rules",
           analysedAt: new Date(),
         },
       });
@@ -85,11 +70,7 @@ async function main() {
   });
 
   console.log(
-    JSON.stringify(
-      { provider: source, considered: articles.length, updated, failed, fellBack },
-      null,
-      2,
-    ),
+    JSON.stringify({ provider: "rules", considered: articles.length, updated, failed }, null, 2),
   );
 }
 

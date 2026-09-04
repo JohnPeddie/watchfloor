@@ -2,14 +2,14 @@
 
 import { Icon } from "@/components/Icon";
 
-/** The four panes, shown one at a time below the `md` breakpoint. */
-export type PaneId = "brief" | "map" | "traffic" | "insight";
+/** The four panes, shown one at a time on the Fold cover / phone screen. */
+export type PaneId = "brief" | "articles" | "map" | "markets";
 
 const DESTINATIONS: { id: PaneId; label: string; icon: string }[] = [
   { id: "brief", label: "Brief", icon: "article" },
-  { id: "map", label: "Map", icon: "public" },
-  { id: "traffic", label: "Stream", icon: "radar" },
-  { id: "insight", label: "Insight", icon: "insights" },
+  { id: "articles", label: "Articles", icon: "radar" },
+  { id: "map", label: "Globe", icon: "public" },
+  { id: "markets", label: "Markets", icon: "trending" },
 ];
 
 type BottomNavProps = {
@@ -20,17 +20,19 @@ type BottomNavProps = {
 };
 
 /**
- * Material navigation bar for phones. Hidden from `md` up, where tablets show
- * every pane at once.
+ * Material navigation bar for the Fold cover. The inner screen uses the
+ * top-bar views instead.
  */
 export function BottomNav({ active, onChange, flashCount }: BottomNavProps) {
   return (
     <nav
-      className="flex shrink-0 items-stretch justify-around md:hidden"
+      className="flex shrink-0 items-stretch justify-around"
       style={{
         background: "var(--md-container)",
         boxShadow: "var(--elev-2)",
         paddingBottom: "env(safe-area-inset-bottom)",
+        paddingLeft: "max(0.25rem, env(safe-area-inset-left))",
+        paddingRight: "max(0.25rem, env(safe-area-inset-right))",
       }}
       aria-label="Dashboard sections"
     >
@@ -54,7 +56,7 @@ export function BottomNav({ active, onChange, flashCount }: BottomNavProps) {
               }}
             >
               <Icon name={destination.icon} size={20} />
-              {destination.id === "traffic" && flashCount > 0 && (
+              {destination.id === "articles" && flashCount > 0 && (
                 <span
                   className="md-mono absolute right-2 top-0 rounded-full px-1 text-[9px] font-medium"
                   style={{

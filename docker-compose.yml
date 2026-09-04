@@ -37,6 +37,10 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-120000}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:1234/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-300000}
       TZ: ${TZ:-Europe/London}
     volumes:
       - watchfloor-data:/app/data
@@ -68,9 +72,6 @@ services:
           curl -fsS -m 600 -X POST http://app:3050/api/ingest \
             -H 'Content-Type: application/json' \
             -d '{"fetchImages":true,"maxPerFeed":12}' || echo "ingest failed"
-          curl -fsS -m 600 -X POST http://app:3050/api/summarize \
-            -H 'Content-Type: application/json' \
-            -d "{\"limit\":$${SUMMARIZE_BATCH}}" || echo "summarize failed"
           curl -fsS -m 600 -X POST http://app:3050/api/brief \
             -H 'Content-Type: application/json' -d '{}' || echo "brief failed"
           sleep "$${CYCLE_SECONDS}"

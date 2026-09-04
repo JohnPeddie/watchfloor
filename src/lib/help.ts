@@ -13,7 +13,7 @@ export const HELP: Record<string, HelpTopic> = {
   brief: {
     title: "Daily brief",
     body:
-      "The day's reporting reduced to a handful of stories. An item only appears when at least four reports are talking about the same event. Items are ordered by precedence. Selecting one shows the assessment, the reports behind it, and a source web on the globe.",
+      "The day's reporting, at least five stories and more when the day is busy. Items are chosen for coverage across UK, defence, conflict, energy, cyber and markets. An item normally needs four reports on the same event; if the floor is short or the lanes are thin, the bar steps down rather than shipping an empty or one-topic brief. A local LLM writes those items from the clustered articles when one is reachable; otherwise the rules engine extracts them. Items are ordered by precedence.",
   },
   stream: {
     title: "Reporting stream",
@@ -23,7 +23,7 @@ export const HELP: Record<string, HelpTopic> = {
   globe: {
     title: "Geospatial plot",
     body:
-      "Where the reporting is happening. Day and night track real time. Selecting a brief item plants a marker at the story's subject and draws a spoke from every source toward it — the outlet's desk when the article is about the same place, or the article's own location when the chatter is elsewhere. The assessment itself replaces the reporting stream, so the globe stays in view.",
+      "Where the reporting is happening. Day and night track real time. Selecting a brief item or article plants a marker at the subject and, for brief items, draws a spoke from every source toward it. On a PC the plot sits above the stream. On the Fold inner screen it sits beside the list; on the cover, use the Globe tab.",
   },
   energy: {
     title: "Energy",
@@ -53,6 +53,11 @@ export const HELP: Record<string, HelpTopic> = {
   summarisation: {
     title: "Summarisation",
     body:
-      "Which engine wrote the summaries. Rules is offline sentence extraction and always available. LLM uses a local Ollama model when one is reachable, and falls back to rules automatically if it is not, so the dashboard keeps working either way.",
+      "Which engine wrote the daily brief. Rules is offline sentence extraction. LLM uses a local model (LM Studio or Ollama) only to write brief items from clustered reports — not to summarise every article. If the model host is down, the brief falls back to rules and the dashboard keeps working.",
+  },
+  settings: {
+    title: "Settings",
+    body:
+      "Periodic news refresh pulls the RSS feeds on the interval you set. The daily briefing runs once after the chosen morning time — 06:00 by default — and catches up if the server was off at that hour. Both only run while Watchfloor itself is running. The stats are today's figures for this machine: articles collected, LLM tokens, and how long the local model took.",
   },
 };

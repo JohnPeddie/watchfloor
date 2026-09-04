@@ -24,7 +24,7 @@ async function main() {
   const date = arg("date") ?? todayUtc();
   const forceAuto = process.argv.includes("--auto");
   const dryRun = process.argv.includes("--dry-run");
-  const stories = Number(arg("stories") ?? 7);
+  const stories = Number(arg("stories"));
   const windowHours = Number(arg("window") ?? 72);
   const minSources = Number(arg("min-sources") ?? 4);
 
@@ -55,7 +55,7 @@ async function main() {
 
   const result = await generateBrief({
     date,
-    maxStories: Number.isFinite(stories) ? stories : 7,
+    maxStories: Number.isFinite(stories) ? stories : undefined,
     windowHours: Number.isFinite(windowHours) ? windowHours : 72,
     minSources: Number.isFinite(minSources) ? minSources : 4,
     providerId: arg("provider"),
@@ -78,6 +78,8 @@ async function main() {
         fellBack: result.fellBack,
         candidates: result.candidateCount,
         stories: result.clusterCount,
+        coverageLanes: result.coverageLanes,
+        tolerance: result.tolerance,
         written: result.written,
         headlines: result.stories.map((s) => `[${s.precedence}] ${s.headline}`),
       },

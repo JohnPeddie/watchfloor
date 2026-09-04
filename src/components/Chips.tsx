@@ -11,9 +11,17 @@ export function TagChip({ tag }: { tag: Tag }) {
   return <span className={`md-chip md-chip-hue hue-${tag}`}>{tag}</span>;
 }
 
-export function TagChips({ tags, max = 4 }: { tags: Tag[]; max?: number }) {
+export function TagChips({
+  tags,
+  max = 4,
+  wrap = true,
+}: {
+  tags: Tag[];
+  max?: number;
+  wrap?: boolean;
+}) {
   return (
-    <span className="inline-flex flex-wrap gap-1.5">
+    <span className={`inline-flex gap-1.5 ${wrap ? "flex-wrap" : "max-w-full flex-nowrap overflow-hidden"}`}>
       {tags.slice(0, max).map((t) => (
         <TagChip key={t} tag={t} />
       ))}

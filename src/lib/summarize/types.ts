@@ -61,9 +61,9 @@ export type ProviderHealth = {
 };
 
 /**
- * Contract every summariser satisfies. The rules provider runs offline; the
- * Ollama provider calls a model over the network. Anything added later (a
- * hosted API, a different local runtime) only has to implement this.
+ * Contract every summariser satisfies. The rules provider runs offline;
+ * Ollama and OpenAI-compatible hosts (LM Studio) call a model over the
+ * network. Anything added later only has to implement this.
  */
 export type SummaryProvider = {
   id: string;

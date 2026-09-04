@@ -6,6 +6,8 @@ import { classify } from "./classify";
 import { serialRef } from "./dtg";
 import { extractPage, mapLimit } from "./extract";
 import { deriveImplication, summariseExtractive } from "./analysis";
+import { exclusive } from "./jobs";
+import { recordRun } from "./run-log";
 
 const parser = new Parser({
   timeout: 15000,
@@ -71,6 +73,15 @@ export async function runIngest(options?: {
   maxPerFeed?: number;
   concurrency?: number;
 }): Promise<IngestResult> {
+  return exclusive(() => runIngestInner(options));
+}
+
+async function runIngestInner(options?: {
+  fetchImages?: boolean;
+  maxPerFeed?: number;
+  concurrency?: number;
+}): Promise<IngestResult> {
+  const startedAt = new Date();
   const enrich = options?.fetchImages ?? true;
   const maxPerFeed = options?.maxPerFeed ?? 12;
   const concurrency = options?.concurrency ?? 6;
@@ -156,22 +167,15 @@ export async function runIngest(options?: {
         result.enriched += 1;
       }
 
-      // Ingest always uses the fast offline summariser; the LLM pass runs
-      // separately via scripts/summarize.ts. If a richer summary already
-      // exists, leave it alone rather than downgrading it here.
-      const hasBetterAnalysis =
-        Boolean(existing?.analysis) &&
-        Boolean(existing?.analysisSource) &&
-        existing?.analysisSource !== "rules";
-
-      const analysisFields = hasBetterAnalysis
-        ? {}
-        : {
-            analysis: summariseExtractive(bodyText, rawExcerpt || null),
-            implication: deriveImplication(classification.tags, place?.label ?? null),
-            analysisSource: "rules",
-            analysedAt: new Date(),
-          };
+      // Article analysis is always the offline rules engine: extractive
+      // sentences plus tag-driven implications. The LLM is reserved for
+      // writing daily brief items from clustered reports.
+      const analysisFields = {
+        analysis: summariseExtractive(bodyText, rawExcerpt || null),
+        implication: deriveImplication(classification.tags, place?.label ?? null),
+        analysisSource: "rules",
+        analysedAt: new Date(),
+      };
 
       const data = {
         title,
@@ -212,6 +216,17 @@ export async function runIngest(options?: {
     where: { key: "lastIngestAt" },
     create: { key: "lastIngestAt", value: new Date().toISOString() },
     update: { value: new Date().toISOString() },
+  });
+
+  await recordRun({
+    kind: "ingest",
+    startedAt,
+    durationMs: Date.now() - startedAt.getTime(),
+    ok: result.errors.length === 0,
+    created: result.created,
+    updated: result.updated,
+    skipped: result.skipped,
+    detail: result.errors.length > 0 ? result.errors.slice(0, 4).join("; ") : null,
   });
 
   return result;

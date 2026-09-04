@@ -30,54 +30,56 @@ type NavRailProps = {
 export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
   return (
     <nav
-      className="hidden shrink-0 flex-col items-center gap-1 py-3 xl:flex"
+      className="flex h-full shrink-0 flex-col items-center gap-1 py-3"
       style={{ width: 84, background: "var(--md-container-low)" }}
       aria-label="Intelligence lanes"
     >
-      {RAIL_ITEMS.map((item) => {
-        const active = (item.tag ?? null) === activeTag;
-        const count = item.tag ? (counts[item.tag] ?? 0) : null;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onSelectTag(item.tag)}
-            className="group flex w-full flex-col items-center gap-1 py-1.5"
-            aria-pressed={active}
-          >
-            <span
-              className="relative flex h-8 w-14 items-center justify-center rounded-full transition-colors"
-              style={{
-                background: active ? "var(--md-secondary-container)" : "transparent",
-                color: active ? "var(--md-on-secondary-container)" : "var(--md-on-surface-variant)",
-              }}
+      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">
+        {RAIL_ITEMS.map((item) => {
+          const active = (item.tag ?? null) === activeTag;
+          const count = item.tag ? (counts[item.tag] ?? 0) : null;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelectTag(item.tag)}
+              className="group flex w-full flex-col items-center gap-1 py-1.5"
+              aria-pressed={active}
             >
-              <Icon name={item.icon} size={20} />
-              {count != null && count > 0 && (
-                <span
-                  className="md-mono absolute -right-0.5 -top-1 rounded-full px-1 text-[9px] font-medium"
-                  style={{
-                    background: "var(--md-primary)",
-                    color: "var(--md-on-primary)",
-                    minWidth: 15,
-                    textAlign: "center",
-                  }}
-                >
-                  {count > 99 ? "99+" : count}
-                </span>
-              )}
-            </span>
-            <span
-              className="text-[11px] font-medium"
-              style={{
-                color: active ? "var(--md-on-surface)" : "var(--md-on-surface-variant)",
-              }}
-            >
-              {item.label}
-            </span>
-          </button>
-        );
-      })}
+              <span
+                className="relative flex h-8 w-14 items-center justify-center rounded-full transition-colors"
+                style={{
+                  background: active ? "var(--md-secondary-container)" : "transparent",
+                  color: active ? "var(--md-on-secondary-container)" : "var(--md-on-surface-variant)",
+                }}
+              >
+                <Icon name={item.icon} size={20} />
+                {count != null && count > 0 && (
+                  <span
+                    className="md-mono absolute -right-0.5 -top-1 rounded-full px-1 text-[9px] font-medium"
+                    style={{
+                      background: "var(--md-primary)",
+                      color: "var(--md-on-primary)",
+                      minWidth: 15,
+                      textAlign: "center",
+                    }}
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
+              </span>
+              <span
+                className="text-[11px] font-medium"
+                style={{
+                  color: active ? "var(--md-on-surface)" : "var(--md-on-surface-variant)",
+                }}
+              >
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -89,8 +91,12 @@ export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
 export function LaneChips({ activeTag, onSelectTag, counts }: NavRailProps) {
   return (
     <nav
-      className="md-hscroll flex shrink-0 items-center gap-2 px-3 py-2 xl:hidden"
-      style={{ background: "var(--md-container-low)" }}
+      className="md-hscroll flex shrink-0 items-center gap-2 px-3 py-1.5"
+      style={{
+        background: "var(--md-container-low)",
+        paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
+        paddingRight: "max(0.75rem, env(safe-area-inset-right))",
+      }}
       aria-label="Intelligence lanes"
     >
       {RAIL_ITEMS.map((item) => {

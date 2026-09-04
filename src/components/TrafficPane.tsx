@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { GradeChip, PrecedenceChip, TagChips } from "@/components/Chips";
 import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
+import { MediaFrame } from "@/components/MediaFrame";
 import { dtgShort } from "@/lib/dtg";
 import type { ArticleDTO } from "@/lib/serializers";
 
@@ -16,6 +17,8 @@ type TrafficPaneProps = {
   activeTag: string | null;
   /** Header controls supplied by the layout, such as the minimise button. */
   actions?: ReactNode;
+  /** Tighter rows for the tablet stream column. */
+  dense?: boolean;
 };
 
 export function TrafficPane({
@@ -50,59 +53,47 @@ export function TrafficPane({
           </p>
         )}
 
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {articles.map((a) => (
             <button
               key={a.id}
               type="button"
               onClick={() => onSelectArticle(a)}
-              className="md-state md-list-item items-start"
+              className="md-state md-list-item"
               data-selected={a.id === selectedArticleId}
             >
-              <div
-                className="h-[58px] w-[80px] shrink-0 overflow-hidden rounded-xl"
-                style={{ background: "var(--md-container-high)" }}
-              >
-                {a.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[var(--md-outline)]">
-                    <Icon name="article" size={18} />
-                  </div>
-                )}
-              </div>
+              <MediaFrame src={a.imageUrl} className="w-[88px] rounded-lg" />
 
               <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center gap-2">
+                <div className="mb-0.5 flex items-center gap-2">
                   <PrecedenceChip precedence={a.precedence} dense />
-                  <span className="md-label-sm md-mono text-[var(--md-secondary)]">
+                  <span className="md-label-sm md-mono truncate text-[var(--md-secondary)]">
                     {a.sourceCode}
                   </span>
                   <GradeChip grade={a.sourceGrade} />
-                  <span className="md-label-sm md-mono ml-auto">
+                  <span className="md-label-sm md-mono ml-auto shrink-0">
                     {a.publishedAt ? dtgShort(new Date(a.publishedAt)) : "—"}
                   </span>
                 </div>
 
-                <div className="md-title mb-1 line-clamp-2 leading-snug text-[var(--md-on-surface)]">
+                <div className="md-title line-clamp-2 leading-snug text-[var(--md-on-surface)]">
                   {a.title}
                 </div>
 
-                <p className="md-body mb-1.5 line-clamp-2 text-[12px]">
+                <p className="md-body mt-0.5 line-clamp-1 text-[12px]">
                   {a.analysis ?? a.summary ?? "No summary captured."}
                 </p>
 
-                <div className="flex items-center gap-2">
-                  <TagChips tags={a.tags} max={3} />
+                <div className="mt-1 flex min-w-0 items-center gap-2">
+                  <TagChips tags={a.tags} max={3} wrap={false} />
                   {a.placeLabel && (
-                    <span className="md-label-sm flex items-center gap-1 whitespace-nowrap">
+                    <span className="md-label-sm ml-auto flex min-w-0 items-center gap-1">
                       <Icon name="place" size={12} />
-                      {a.placeLabel}
+                      <span className="truncate">{a.placeLabel}</span>
                     </span>
                   )}
                   {a.images.length > 1 && (
-                    <span className="md-label-sm ml-auto flex items-center gap-1 whitespace-nowrap">
+                    <span className="md-label-sm flex shrink-0 items-center gap-1">
                       <Icon name="layers" size={12} />
                       {a.images.length}
                     </span>
