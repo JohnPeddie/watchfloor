@@ -46,11 +46,19 @@ const TITLE_STOPWORDS = new Set([
   "first", "year", "years", "week", "them", "they", "your", "just", "also",
 ]);
 
+/**
+ * Truncating to a stem folds the morphological variants that headline writers
+ * reach for — Argentina/Argentine/Argentinian, sanction/sanctions — onto one
+ * token. Seven characters is long enough to keep genuinely different words
+ * apart (military/militant still diverge).
+ */
+const STEM_LENGTH = 7;
+
 function titleTokens(title: string): Set<string> {
   return new Set(
-    (title.toLowerCase().match(/[a-z][a-z'-]{3,}/g) ?? []).filter(
-      (word) => !TITLE_STOPWORDS.has(word),
-    ),
+    (title.toLowerCase().match(/[a-z][a-z'’-]{3,}/g) ?? [])
+      .filter((word) => !TITLE_STOPWORDS.has(word))
+      .map((word) => word.replace(/['’-]/g, "").slice(0, STEM_LENGTH)),
   );
 }
 
@@ -59,6 +67,30 @@ function overlap(a: Set<string>, b: Set<string>): number {
   let shared = 0;
   for (const word of a) if (b.has(word)) shared++;
   return shared / Math.min(a.size, b.size);
+}
+
+/**
+ * Tokens rare across the day's reporting. Two headlines sharing "falkland" and
+ * "argentin" are almost certainly the same event; sharing "defence" and
+ * "minister" means nothing, because half the feed does.
+ */
+function rareTokens(candidates: ClusterCandidate[]): Set<string> {
+  const frequency = new Map<string, number>();
+  for (const candidate of candidates) {
+    for (const token of titleTokens(candidate.title)) {
+      frequency.set(token, (frequency.get(token) ?? 0) + 1);
+    }
+  }
+  const ceiling = Math.max(3, Math.ceil(candidates.length * 0.08));
+  return new Set(
+    [...frequency.entries()].filter(([, count]) => count <= ceiling).map(([token]) => token),
+  );
+}
+
+function sharedRareCount(a: Set<string>, b: Set<string>, rare: Set<string>): number {
+  let shared = 0;
+  for (const word of a) if (b.has(word) && rare.has(word)) shared++;
+  return shared;
 }
 
 type WorkingCluster = {
@@ -84,6 +116,7 @@ export function clusterArticles(
     return (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
   });
 
+  const rare = rareTokens(candidates);
   const working: WorkingCluster[] = [];
 
   for (const article of ordered) {
@@ -92,7 +125,11 @@ export function clusterArticles(
 
     for (const cluster of working) {
       const sim = overlap(tokens, cluster.tokens);
-      if (sim < minOverlap) continue;
+
+      // Plain word overlap drops off as a cluster absorbs more headlines, so a
+      // weaker overlap still counts when the shared words are distinctive.
+      const named = sharedRareCount(tokens, cluster.tokens, rare);
+      if (sim < minOverlap && !(named >= 2 && sim >= minOverlap / 2)) continue;
 
       const samePlace = cluster.members.some(
         (m) => m.placeLabel && article.placeLabel && m.placeLabel === article.placeLabel,

@@ -107,8 +107,25 @@ export const GAZETTEER: Place[] = [
   { label: "Taiwan Strait", lat: 24.5, lng: 119.5, aliases: ["taiwan strait"] },
 ];
 
+/**
+ * Aliases have to match whole words. A plain substring test puts "woman" in
+ * Oman, "Ukraine" in London via "uk", and "Somalia" in Mali, which then plots
+ * the story on the wrong side of the globe.
+ */
+const ALIAS_MATCHERS: { place: Place; alias: string; pattern: RegExp }[] = GAZETTEER.flatMap(
+  (place) =>
+    place.aliases.map((alias) => ({
+      place,
+      alias,
+      pattern: new RegExp(
+        `(?<![\\p{L}\\p{N}])${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
+        "iu",
+      ),
+    })),
+);
+
 export function geocodeText(...parts: Array<string | null | undefined>): Place | null {
-  const chunks = parts.filter(Boolean).map((p) => String(p).toLowerCase());
+  const chunks = parts.filter(Boolean).map((p) => String(p));
   if (chunks.length === 0) return null;
 
   // Prefer matches in earlier parts (e.g. placeHint / headline before body)
@@ -116,13 +133,11 @@ export function geocodeText(...parts: Array<string | null | undefined>): Place |
   for (let partIdx = 0; partIdx < chunks.length; partIdx++) {
     const haystack = chunks[partIdx];
     const partWeight = (chunks.length - partIdx) * 100;
-    for (const place of GAZETTEER) {
-      for (const alias of place.aliases) {
-        if (!haystack.includes(alias.toLowerCase())) continue;
-        const score = partWeight + alias.length;
-        if (!best || score > best.score) {
-          best = { place, score };
-        }
+    for (const { place, alias, pattern } of ALIAS_MATCHERS) {
+      if (!pattern.test(haystack)) continue;
+      const score = partWeight + alias.length;
+      if (!best || score > best.score) {
+        best = { place, score };
       }
     }
   }

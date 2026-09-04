@@ -73,6 +73,17 @@ export type GlobePin = {
   placeLabel: string | null;
   precedence: Precedence;
   imageUrl: string | null;
+  /** Set when this pin is one of the reports behind the selected story. */
+  sourcing?: boolean;
+};
+
+/** A line drawn from a selected story to one of the reports it was built from. */
+export type GlobeLink = {
+  id: string;
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
 };
 
 export function parseJsonArray(value: string | null | undefined): string[] {

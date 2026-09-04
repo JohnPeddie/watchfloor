@@ -5,7 +5,7 @@ import Globe, { type GlobeMethods } from "react-globe.gl";
 import * as THREE from "three";
 import { PRECEDENCE_STYLES } from "@/lib/classify";
 import { subsolarPoint } from "@/lib/solar";
-import type { GlobePin } from "@/lib/serializers";
+import type { GlobeLink, GlobePin } from "@/lib/serializers";
 
 type GlobeViewProps = {
   pins: GlobePin[];
@@ -14,6 +14,21 @@ type GlobeViewProps = {
   onSelectPin: (pin: GlobePin) => void;
   showImagery: boolean;
   showBoundaries: boolean;
+  /** Story-to-source connectors, drawn in place of the ambient arcs. */
+  links: GlobeLink[];
+};
+
+type ArcDatum = {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  color: string[];
+  stroke: number;
+  dashLength: number;
+  dashGap: number;
+  dashAnimateTime: number;
+  altitudeScale: number;
 };
 
 type CountryFeature = {
@@ -90,6 +105,7 @@ export function GlobeView({
   onSelectPin,
   showImagery,
   showBoundaries,
+  links,
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,31 +178,58 @@ export function GlobeView({
         .filter((p) => !showImagery || !p.imageUrl)
         .map((p) => ({
           ...p,
-          radius: p.id === selectedId ? 0.55 : p.kind === "story" ? 0.4 : 0.22,
+          radius:
+            p.id === selectedId ? 0.55 : p.sourcing ? 0.34 : p.kind === "story" ? 0.4 : 0.22,
           color:
             p.id === selectedId
               ? "#ffb77c"
-              : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
+              : p.sourcing
+                ? "#e0a273"
+                : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
         })),
     [pins, selectedId, showImagery],
   );
 
-  const arcs = useMemo(
-    () =>
-      pins
-        .filter((p) => p.kind === "story")
-        .map((p) => ({
-          startLat: UK_HOME.lat,
-          startLng: UK_HOME.lng,
-          endLat: p.lat,
-          endLng: p.lng,
-          color:
-            p.precedence === "FLASH"
-              ? ["rgba(255,180,171,0.02)", "rgba(255,180,171,0.5)"]
-              : ["rgba(127,214,201,0.02)", "rgba(127,214,201,0.34)"],
-        })),
-    [pins],
-  );
+  /**
+   * With a story selected the globe shows where its reporting came from, so
+   * the ambient home arcs step aside rather than compete with the connectors.
+   * Connectors hug the surface and stay hairline-thin so a dense cluster still
+   * reads as separate threads.
+   */
+  const arcs = useMemo<ArcDatum[]>(() => {
+    if (links.length > 0) {
+      return links.map((link) => ({
+        startLat: link.startLat,
+        startLng: link.startLng,
+        endLat: link.endLat,
+        endLng: link.endLng,
+        color: ["rgba(255,183,124,0.9)", "rgba(255,183,124,0.22)"],
+        stroke: 0.12,
+        dashLength: 0.42,
+        dashGap: 0.14,
+        dashAnimateTime: 2400,
+        altitudeScale: 0.16,
+      }));
+    }
+
+    return pins
+      .filter((p) => p.kind === "story")
+      .map((p) => ({
+        startLat: UK_HOME.lat,
+        startLng: UK_HOME.lng,
+        endLat: p.lat,
+        endLng: p.lng,
+        color:
+          p.precedence === "FLASH"
+            ? ["rgba(255,180,171,0.02)", "rgba(255,180,171,0.5)"]
+            : ["rgba(127,214,201,0.02)", "rgba(127,214,201,0.34)"],
+        stroke: 0.3,
+        dashLength: 0.45,
+        dashGap: 0.22,
+        dashAnimateTime: 5000,
+        altitudeScale: 0.4,
+      }));
+  }, [pins, links]);
 
   const rings = useMemo(
     () =>
@@ -297,11 +340,12 @@ export function GlobeView({
           }}
           arcsData={arcs}
           arcColor="color"
-          arcAltitudeAutoScale={0.4}
-          arcStroke={0.3}
-          arcDashLength={0.45}
-          arcDashGap={0.22}
-          arcDashAnimateTime={5000}
+          arcAltitudeAutoScale="altitudeScale"
+          arcStroke="stroke"
+          arcDashLength="dashLength"
+          arcDashGap="dashGap"
+          arcDashAnimateTime="dashAnimateTime"
+          arcsTransitionDuration={300}
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"

@@ -18,6 +18,7 @@ import type {
   ArticleDTO,
   BriefDTO,
   BriefStoryDTO,
+  GlobeLink,
   GlobePin,
   SummarizerStatus,
 } from "@/lib/serializers";
@@ -151,6 +152,70 @@ export function WatchfloorDashboard() {
       .map((x) => x.a);
   }, [selectedStory, allArticles]);
 
+  /**
+   * The globe shows how a story was put together: a connector runs from the
+   * story's location to each report behind it. Sources the current filter
+   * excluded are added back as pins, otherwise a connector would end nowhere.
+   */
+  const globePins: GlobePin[] = useMemo(() => {
+    const sourceIds = new Set(relatedArticles.map((a) => a.id));
+    const marked = pins.map((pin) =>
+      pin.kind === "article" && sourceIds.has(pin.id.slice("article:".length))
+        ? { ...pin, sourcing: true }
+        : pin,
+    );
+
+    const plotted = new Set(marked.map((p) => p.id));
+    const missing: GlobePin[] = relatedArticles
+      .filter((a) => a.lat != null && a.lng != null && !plotted.has(`article:${a.id}`))
+      .map((a) => ({
+        id: `article:${a.id}`,
+        kind: "article",
+        label: a.title,
+        lat: a.lat as number,
+        lng: a.lng as number,
+        placeLabel: a.placeLabel,
+        precedence: a.precedence,
+        imageUrl: a.imageUrl,
+        sourcing: true,
+      }));
+
+    return [...marked, ...missing];
+  }, [pins, relatedArticles]);
+
+  const globeLinks: GlobeLink[] = useMemo(() => {
+    const story = selectedStory;
+    if (!story || story.lat == null || story.lng == null) return [];
+    const originLat = story.lat;
+    const originLng = story.lng;
+
+    // Sources sharing a place would stack identical arcs, so connect each
+    // distinct location once. A source at the story's own location has nothing
+    // to connect to.
+    const seen = new Set<string>();
+    const links: GlobeLink[] = [];
+
+    for (const article of relatedArticles) {
+      const { lat, lng } = article;
+      if (lat == null || lng == null) continue;
+      if (Math.abs(lat - originLat) <= 0.05 && Math.abs(lng - originLng) <= 0.05) continue;
+
+      const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      links.push({
+        id: `link:${story.id}:${key}`,
+        startLat: originLat,
+        startLng: originLng,
+        endLat: lat,
+        endLng: lng,
+      });
+    }
+
+    return links;
+  }, [selectedStory, relatedArticles]);
+
   const feedStatus = useMemo(() => {
     const counts = new Map<string, number>();
     for (const a of allArticles) {
@@ -220,7 +285,13 @@ export function WatchfloorDashboard() {
     }
   }
 
-  const plottedImages = pins.filter((p) => p.imageUrl).length;
+  const plottedImages = globePins.filter((p) => p.imageUrl).length;
+  const globeCaption =
+    globeLinks.length > 0
+      ? `${relatedArticles.length} sources · ${globeLinks.length} linked location${
+          globeLinks.length === 1 ? "" : "s"
+        }`
+      : `${globePins.length} contacts · ${plottedImages} with imagery · live day/night`;
 
   const { headerRef, hostRef, offset, hidden: headerHidden } = useCollapsingHeader(
     isCompact,
@@ -295,7 +366,7 @@ export function WatchfloorDashboard() {
                 <div className="min-w-0">
                   <div className="md-title-lg">Geospatial plot</div>
                   <div className="md-label-sm truncate">
-                    {`${pins.length} contacts · ${plottedImages} with imagery · live day/night`}
+                    {globeCaption}
                   </div>
                 </div>
                 <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -331,7 +402,8 @@ export function WatchfloorDashboard() {
               </div>
 
               <GlobeView
-                pins={pins}
+                pins={globePins}
+                links={globeLinks}
                 focus={focus}
                 selectedId={selectedPinId}
                 onSelectPin={onSelectPin}
