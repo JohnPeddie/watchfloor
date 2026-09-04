@@ -97,7 +97,7 @@ export async function loadCandidates(
   const rows = await prisma.article.findMany({
     where: { publishedAt: { gte: start, lte: end } },
     orderBy: { publishedAt: "desc" },
-    take: 400,
+    take: 300,
   });
 
   return rows.map((row) => ({
@@ -153,6 +153,12 @@ async function generateBriefInner(options: GenerateOptions = {}): Promise<Genera
   const startSources = options.minSources ?? 4;
   const startWindow = options.windowHours ?? 72;
   const { provider, health, fellBack, requestedId } = await resolveProvider(options.providerId);
+  if (fellBack) {
+    console.warn(
+      "[brief] local LLM unreachable — writing this brief with the rules engine.",
+      health.detail ?? "",
+    );
+  }
 
   const steps = relaxationLadder(startSources);
   const strictStep = steps[0]!;

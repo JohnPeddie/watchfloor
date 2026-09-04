@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Roboto, Roboto_Mono } from "next/font/google";
+import { PwaProvider } from "@/lib/use-pwa";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -20,6 +21,17 @@ export const metadata: Metadata = {
     "Personal all-source intelligence dashboard: UK defence, energy, cyber, conflict and market reporting with geospatial plotting.",
   applicationName: "Watchfloor",
   appleWebApp: { capable: true, title: "Watchfloor", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
@@ -59,7 +71,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
       <body className={`${roboto.variable} ${robotoMono.variable} antialiased`}>
-        {children}
+        <PwaProvider>{children}</PwaProvider>
       </body>
     </html>
   );

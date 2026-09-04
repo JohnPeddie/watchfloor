@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { MAX_ARTICLES, pruneOldestArticles } from "@/lib/retention";
 import { toArticleDTO } from "@/lib/serializers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  await pruneOldestArticles();
+
   const lane = req.nextUrl.searchParams.get("lane");
   const tag = req.nextUrl.searchParams.get("tag");
   const precedence = req.nextUrl.searchParams.get("precedence");
   const q = req.nextUrl.searchParams.get("q")?.trim();
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") ?? 60), 200);
+  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") ?? 60), MAX_ARTICLES);
 
   const articles = await prisma.article.findMany({
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    take: 300,
+    take: MAX_ARTICLES,
   });
 
   let filtered = articles;

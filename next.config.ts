@@ -27,6 +27,21 @@ const nextConfig: NextConfig = {
   // origin is listed, which otherwise breaks loading the dev server from a
   // phone or tablet by IP or hostname.
   allowedDevOrigins: privateDevOrigins,
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+      {
+        source: "/:path*",
+        headers: [{ key: "Permissions-Policy", value: "fullscreen=(self)" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -8,6 +8,7 @@ import { extractPage, mapLimit } from "./extract";
 import { deriveImplication, summariseExtractive } from "./analysis";
 import { exclusive } from "./jobs";
 import { recordRun } from "./run-log";
+import { pruneOldestArticles } from "./retention";
 
 const parser = new Parser({
   timeout: 15000,
@@ -211,6 +212,8 @@ async function runIngestInner(options?: {
       result.errors.push(`${feed.id} item: ${message}`);
     }
   });
+
+  await pruneOldestArticles();
 
   await prisma.meta.upsert({
     where: { key: "lastIngestAt" },

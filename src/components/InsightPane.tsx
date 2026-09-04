@@ -30,8 +30,9 @@ export function InsightPane({
   summarizer,
   columns = 1,
 }: InsightPaneProps) {
-  const oil = markets.filter((m) => m.label.includes("Crude"));
-  const rest = markets.filter((m) => !m.label.includes("Crude"));
+  const oil = markets.filter((m) => m.kind === "energy");
+  const rest = markets.filter((m) => m.kind === "benchmark");
+  const sectors = markets.filter((m) => m.kind === "sector");
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-0.5">
@@ -70,6 +71,37 @@ export function InsightPane({
           </div>
         </div>
       </section>
+
+      {sectors.length > 0 && (
+        <section className={`md-pane shrink-0${columns === 2 ? " col-span-2" : ""}`}>
+          <div className="md-pane-head">
+            <div className="md-title-lg flex items-center gap-2">
+              <Icon name="layers" size={18} className="text-[var(--md-secondary)]" />
+              Sectors
+            </div>
+            <HelpButton topic="sectors" />
+          </div>
+          <div className="px-3 pb-3">
+            <div
+              className={
+                columns === 2
+                  ? "grid grid-cols-2 gap-2"
+                  : "md-card-outlined divide-y divide-[var(--md-outline-variant)]"
+              }
+            >
+              {sectors.map((q) =>
+                columns === 2 ? (
+                  <div key={q.symbol} className="md-card-outlined">
+                    <MarketRow quote={q} />
+                  </div>
+                ) : (
+                  <MarketRow key={q.symbol} quote={q} />
+                ),
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className={`md-pane shrink-0${columns === 2 ? " col-span-2" : ""}`}>
         <div className="md-pane-head">
@@ -275,13 +307,24 @@ function OilCard({ quote }: { quote: MarketQuote }) {
   );
 }
 
+function priceDecimals(quote: MarketQuote): number {
+  if (quote.symbol.includes("=X")) return 4;
+  if (quote.kind === "sector" || quote.kind === "energy") return 2;
+  return 0;
+}
+
 function MarketRow({ quote }: { quote: MarketQuote }) {
   const up = (quote.changePct ?? 0) >= 0;
-  const decimals = quote.symbol.includes("=X") ? 4 : 0;
+  const decimals = priceDecimals(quote);
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <div className="min-w-0 flex-1">
-        <div className="md-label-sm truncate">{quote.label}</div>
+        <div className="md-label-sm truncate">
+          {quote.label}
+          {quote.kind === "sector" && (
+            <span className="md-mono ml-1.5 text-[var(--md-outline)]">{quote.symbol}</span>
+          )}
+        </div>
         <div className="md-mono text-[15px] text-[var(--md-on-surface)]">
           {quote.price ? quote.price.toFixed(decimals) : "—"}
         </div>

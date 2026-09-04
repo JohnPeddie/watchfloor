@@ -5,6 +5,7 @@ import Globe, { type GlobeMethods } from "react-globe.gl";
 import * as THREE from "three";
 import { PRECEDENCE_STYLES } from "@/lib/classify";
 import { subsolarPoint } from "@/lib/solar";
+import { hazardDisc, type HazardMark, type HazardsPayload } from "@/lib/hazard-geometry";
 import type { GlobeLink, GlobePin } from "@/lib/serializers";
 
 type GlobeViewProps = {
@@ -14,6 +15,8 @@ type GlobeViewProps = {
   onSelectPin: (pin: GlobePin) => void;
   showImagery: boolean;
   showBoundaries: boolean;
+  showHazards?: boolean;
+  hazards?: HazardsPayload;
   /** Story-to-source connectors, drawn in place of the ambient arcs. */
   links: GlobeLink[];
 };
@@ -105,6 +108,8 @@ export function GlobeView({
   onSelectPin,
   showImagery,
   showBoundaries,
+  showHazards = true,
+  hazards,
   links,
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
@@ -167,6 +172,16 @@ export function GlobeView({
     };
   }, []);
 
+  const hazardMarks = useMemo<HazardMark[]>(
+    () => (showHazards ? [...(hazards?.warzones ?? []), ...(hazards?.storms ?? [])] : []),
+    [showHazards, hazards],
+  );
+
+  const polygons = useMemo(
+    () => [...(showBoundaries ? countries : []), ...hazardMarks.map((mark) => hazardDisc(mark))],
+    [showBoundaries, countries, hazardMarks],
+  );
+
   const imagePins = useMemo(
     () =>
       links.length > 0
@@ -177,23 +192,27 @@ export function GlobeView({
     [pins, showImagery, links.length],
   );
 
-  const points = useMemo(
-    () =>
-      pins
-        .filter((p) => links.length > 0 || !showImagery || !p.imageUrl)
-        .map((p) => ({
-          ...p,
-          radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.4 : 0.22,
-          color: p.focus
-            ? "#ffb77c"
-            : p.kind === "source"
-              ? "#7fd6c9"
-              : p.id === selectedId
-                ? "#ffb77c"
-                : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
-        })),
-    [pins, selectedId, showImagery, links.length],
-  );
+  const points = useMemo(() => {
+    const articlePoints = pins
+      .filter((p) => links.length > 0 || !showImagery || !p.imageUrl)
+      .map((p) => ({
+        ...p,
+        radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.4 : 0.22,
+        color: p.focus
+          ? "#ffb77c"
+          : p.kind === "source"
+            ? "#7fd6c9"
+            : p.id === selectedId
+              ? "#ffb77c"
+              : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
+      }));
+    const overlayPoints = hazardMarks.map((mark) => ({
+      ...mark,
+      radius: mark.kind === "warzone" ? 0.55 : 0.48,
+      color: stormColor(mark),
+    }));
+    return [...overlayPoints, ...articlePoints];
+  }, [pins, selectedId, showImagery, links.length, hazardMarks]);
 
   /**
    * A selected story's source web replaces the ambient home arcs. Dashes
@@ -235,11 +254,17 @@ export function GlobeView({
   }, [pins, links]);
 
   const rings = useMemo(
-    () =>
-      pins
+    () => [
+      ...pins
         .filter((p) => p.focus || p.precedence === "FLASH" || p.id === selectedId)
-        .map((p) => ({ lat: p.lat, lng: p.lng })),
-    [pins, selectedId],
+        .map((p) => ({ lat: p.lat, lng: p.lng, color: "255,183,124" })),
+      ...hazardMarks.map((mark) => ({
+        lat: mark.lat,
+        lng: mark.lng,
+        color: mark.kind === "warzone" ? "255,70,60" : mark.severity === "extreme" ? "196,120,255" : "255,176,64",
+      })),
+    ],
+    [pins, selectedId, hazardMarks],
   );
 
   useEffect(() => {
@@ -287,13 +312,28 @@ export function GlobeView({
       style={{ isolation: "isolate", zIndex: 0 }}
     >
       {sunLabel && (
-        <div className="on-globe pointer-events-none absolute bottom-3 left-3 z-[60]">
+        <div className="on-globe pointer-events-none absolute bottom-3 left-3 z-[60] space-y-1">
           <div
             className="md-label-sm md-mono rounded-full px-2 py-1"
             style={{ background: "rgba(11,14,17,0.72)" }}
           >
             Subsolar point {sunLabel}
           </div>
+          {showHazards && hazardMarks.length > 0 && (
+            <div
+              className="md-label-sm flex items-center gap-2 rounded-full px-2 py-1"
+              style={{ background: "rgba(11,14,17,0.72)" }}
+            >
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#ff3b30" }} />
+                Warzones
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#ffb000" }} />
+                Storms
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -312,11 +352,11 @@ export function GlobeView({
             if (!material) return;
             material.uniforms.globeRotation.value.set(lng, lat);
           }}
-          polygonsData={showBoundaries ? countries : []}
-          polygonCapColor={() => "rgba(0, 0, 0, 0)"}
+          polygonsData={polygons}
+          polygonCapColor={(d) => polygonFill(d)}
           polygonSideColor={() => "rgba(0, 0, 0, 0)"}
-          polygonStrokeColor={() => "rgba(190, 214, 228, 0.42)"}
-          polygonAltitude={0.005}
+          polygonStrokeColor={(d) => polygonStroke(d)}
+          polygonAltitude={(d) => (featureLayer(d) ? 0.008 : 0.005)}
           polygonsTransitionDuration={0}
           pointsData={points}
           pointLat="lat"
@@ -324,8 +364,20 @@ export function GlobeView({
           pointAltitude={0.02}
           pointRadius="radius"
           pointColor="color"
-          pointLabel={(d) => tooltip(d as unknown as GlobePin)}
-          onPointClick={(d) => onSelectPin(d as unknown as GlobePin)}
+          pointLabel={(d) => tooltip(d)}
+          onPointClick={(d) => {
+            if (isHazard(d)) return;
+            onSelectPin(d as unknown as GlobePin);
+          }}
+          labelsData={hazardMarks}
+          labelLat="lat"
+          labelLng="lng"
+          labelText="label"
+          labelSize={1.05}
+          labelDotRadius={0}
+          labelAltitude={0.02}
+          labelColor={(d) => stormColor(d as HazardMark)}
+          labelResolution={2}
           htmlElementsData={imagePins}
           htmlLat="lat"
           htmlLng="lng"
@@ -362,7 +414,10 @@ export function GlobeView({
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"
-          ringColor={() => (t: number) => `rgba(255,183,124,${1 - t})`}
+          ringColor={(d: { color?: string }) => (t: number) => {
+            const rgb = d.color ?? "255,183,124";
+            return `rgba(${rgb},${(1 - t) * 0.9})`;
+          }}
           ringMaxRadius={3}
           ringPropagationSpeed={1.4}
           ringRepeatPeriod={1700}
@@ -372,7 +427,50 @@ export function GlobeView({
   );
 }
 
-function tooltip(pin: GlobePin) {
+function isHazard(value: unknown): value is HazardMark {
+  if (!value || typeof value !== "object") return false;
+  const kind = (value as { kind?: string }).kind;
+  return kind === "warzone" || kind === "storm";
+}
+
+function stormColor(mark: HazardMark): string {
+  if (mark.kind === "warzone") return mark.severity === "extreme" ? "#ff3b30" : "#ff5c4d";
+  return mark.severity === "extreme" ? "#c77dff" : "#ffb000";
+}
+
+function featureLayer(value: unknown): string | null {
+  if (!value || typeof value !== "object" || !("properties" in value)) return null;
+  const layer = (value as CountryFeature).properties?.layer;
+  return typeof layer === "string" ? layer : null;
+}
+
+function polygonFill(value: unknown): string {
+  const layer = featureLayer(value);
+  const severity = (value as CountryFeature)?.properties?.severity;
+  if (layer === "warzone") return "rgba(255, 48, 42, 0.32)";
+  if (layer === "storm") {
+    return severity === "extreme" ? "rgba(180, 110, 255, 0.28)" : "rgba(255, 176, 64, 0.30)";
+  }
+  return "rgba(0, 0, 0, 0)";
+}
+
+function polygonStroke(value: unknown): string {
+  const layer = featureLayer(value);
+  if (layer === "warzone") return "rgba(255, 80, 70, 0.95)";
+  if (layer === "storm") {
+    const severity = (value as CountryFeature)?.properties?.severity;
+    return severity === "extreme" ? "rgba(199, 125, 255, 0.95)" : "rgba(255, 196, 90, 0.95)";
+  }
+  return "rgba(190, 214, 228, 0.42)";
+}
+
+function tooltip(datum: unknown) {
+  if (isHazard(datum)) {
+    const accent = stormColor(datum);
+    const kind = datum.kind === "warzone" ? "Warzone" : "Storm";
+    return `<div style="font-family:Roboto,sans-serif;font-size:12px;padding:8px 10px;background:#252b31;border-radius:12px;max-width:260px;color:#e2e5e8;box-shadow:0 4px 8px 3px rgba(0,0,0,.26)"><div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:${accent}">${kind}</div><div style="margin-top:3px;color:#e2e5e8">${datum.label}</div><div style="margin-top:2px;color:#b9c3c9">${datum.detail}</div></div>`;
+  }
+  const pin = datum as GlobePin;
   return `<div style="font-family:Roboto,sans-serif;font-size:12px;padding:8px 10px;background:#252b31;border-radius:12px;max-width:260px;color:#e2e5e8;box-shadow:0 4px 8px 3px rgba(0,0,0,.26)"><div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#ffb77c">${
     pin.placeLabel ?? "Location unknown"
   } · ${pin.precedence}</div><div style="margin-top:3px;color:#b9c3c9">${pin.label}</div></div>`;

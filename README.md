@@ -1,18 +1,45 @@
 # WATCHFLOOR
 
-Personal OSINT command centre: daily Global Radar–style briefs, RSS ingest, an interactive day/night globe, and oil/FX panels — presented in a Material 3 dark watchfloor UI.
+Personal OSINT command centre: a daily brief, RSS ingest, an interactive
+day/night globe, markets, and hazard overlays — presented as a Material 3
+watchfloor.
 
-Runs entirely on your own machine. No API keys, no cloud services, no paywalled scrapers.
+Runs on your own machines. No API keys, no cloud services, no paywalled
+scrapers.
+
+| Role | Address | What it does |
+| --- | --- | --- |
+| Production dashboard | `192.168.8.69:3050` | Linux home server, Docker |
+| Local LLM | `192.168.8.60:1234` | This PC, LM Studio (Gemma / whatever is loaded) |
+
+If the PC is off, the dashboard still works. Daily briefs fall back to the
+rules engine, and the UI warns that local LLM summaries are offline.
+
+**Deploy and update the server:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## What it does
 
-- **Ingests** curated RSS feeds across seven lanes (UK, UK Defence, Conflict, Oil & Gas, Markets, Cyber, Intel).
-- **Extracts** the full article body and every usable image from each source page.
-- **Summarises** extractively — a lead-biased sentence scorer produces the analysis, and a rules engine derives a "so what" implication from the assigned tags.
-- **Classifies** each item with sector tags (`DEFENCE`, `ENERGY`, `CYBER`, `KINETIC`, …), a signal precedence (`FLASH` / `IMMEDIATE` / `ROUTINE`), and an Admiralty-code source grade.
-- **Plots** geolocated stories on a globe lit by the real-time solar terminator, with NASA night-lights city glow on the dark side and article thumbnails as markers.
+- **Ingests** curated RSS feeds across seven lanes (UK, UK Defence, Conflict, Oil & Gas, Markets, Cyber, Intel). Holdings cap at 300 articles; oldest drop first.
+- **Extracts** the article body and usable images from each source page.
+- **Classifies** each item with sector tags, a signal precedence (`FLASH` / `IMMEDIATE` / `PRIORITY` / `ROUTINE`), and an Admiralty-code source grade. That path is rules-only — the model never summarises the whole stream.
+- **Briefs** the day: at least five stories, up to twelve when the day is busy. A local LLM writes those items and the BLUF when it is reachable.
+- **Plots** geolocated stories on a globe with the real-time solar terminator, plus warzone and tropical-cyclone overlays.
+- **Tracks** Brent/WTI, FTSE, GBP/USD, and sector ETF proxies (tech, defence, oil & gas, AI, cyber).
 
-## Quick start (laptop)
+## Layouts
+
+The shell follows the device, not a collapsed version of the desktop.
+
+| Surface | What you get |
+| --- | --- |
+| PC / large desktop | Original three-column watchfloor: lane rail, brief, globe over the stream, insight column. |
+| Laptop width | Brief + globe over the stream. Markets and the summariser card appear at desktop width; the LLM-offline strip in the app bar still shows. |
+| Galaxy Z Fold inner | Brief / Articles / Markets tabs, list beside the globe. |
+| Fold cover / phone | One pane at a time with a bottom nav. |
+
+Theme, collect, fullscreen, and (when the workstation is down) the LLM-offline warning sit in the app bar. Collection cadence and the morning brief slot are in the settings cog.
+
+## Quick start (this PC)
 
 ```bash
 npm install
@@ -22,50 +49,16 @@ npm run brief
 npm run dev
 ```
 
-Open [http://localhost:3050](http://localhost:3050). The layout adapts to the
-screen it is on:
+Open [http://localhost:3050](http://localhost:3050). Port **3050** is deliberate so it does not collide with whatever else is on 3000.
 
-| Width | Layout |
-| --- | --- |
-| Below 768px (phones) | One pane at a time via the bottom navigation bar. The app bar and lane chips slide away as you scroll so the reporting gets the full screen, and return when you scroll back up. |
-| 768–1279px (tablets) | Two columns — reporting on the left (brief above the stream), globe and analysis on the right. Lane chips stay as a horizontal row. |
-| 1280px and up (desktop) | Three columns, with the vertical lane rail on the far left. |
-
-The port is **3050**, not Next's default 3000, so it does not collide with
-whatever else is already on 3000 on a home server. Override it with
-`WATCHFLOOR_PORT` when deploying.
-
-To reach it from a phone or tablet on the same network, serve on all
-interfaces and ask for the current URL:
+To try it from a phone on the same network:
 
 ```bash
 npm run dev:lan
 npm run where
 ```
 
-`npm run where` matters because the laptop's DHCP address changes whenever it
-joins a different network. It lists every address the dashboard answers on and
-flags which ones survive a network change.
-
-To run it on a Linux server and reach it from anywhere on your network, see
-**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
-
-> **Windows ARM64 (Snapdragon):** Prisma uses `engineType = "binary"` so the x64 query engine can run under emulation. Keep `PRISMA_CLIENT_ENGINE_TYPE=binary` in `.env` (see `.env.example`).
-
-### Layout
-
-- **Nav rail** (far left): lane and tag filtering.
-- **Brief pane** (left): the day's Global Radar Report. Click a story to fly the globe to it and draw connectors to the reports behind it.
-- **Globe** (centre): live day/night terminator, country boundaries, and pins for brief stories and geolocated articles. Clicking a pin opens the detail sheet.
-- **Traffic pane** (centre, below): the full article feed with thumbnails, tags, precedence and source grades.
-- **Insight pane** (right): Brent, WTI, GBP/USD and FTSE sparklines, classification breakdown, and collection status.
-- **Detail sheet**: image carousel, extracted analysis, implication, source link and related articles. The maximise button opens it over the whole window; Escape steps back out, then closes.
-
-### Working with the panes
-
-- **Theme**: the sun/moon button in the app bar switches between the dark and light schemes. The choice is remembered, and a first visit follows the system preference. Colour lives entirely in CSS custom properties, so tags and precedence chips re-tint themselves rather than needing a second palette.
-- **Minimising**: the globe and the reporting stream each have a minimise button. On tablet and desktop the pane collapses to a slim bar and hands its height to the pane sharing its column, so the globe can take the whole middle column or the stream can. On a phone the same button goes full-bleed instead, hiding the app bar and navigation, because the panes already fill the screen one at a time. Opening a report restores the globe automatically, since the report is shown over it.
-- **Help**: the question-mark button in each panel explains what it is showing.
+> **Windows ARM64 (Snapdragon):** keep `PRISMA_CLIENT_ENGINE_TYPE=binary` in `.env` (see `.env.example`).
 
 ### Scripts
 
@@ -81,112 +74,65 @@ To run it on a Linux server and reach it from anywhere on your network, see
 | `npm run stats` | Report enrichment coverage |
 | `npm run where` | Print every URL the dashboard is reachable on |
 | `npm run dev` | Local Next.js server |
-| `npm run dev:lan` | Dev server bound to all interfaces, for phones and tablets |
+| `npm run dev:lan` | Dev server bound to all interfaces |
 | `npm run build && npm start` | Production mode on this machine |
-
-Useful flags:
 
 ```bash
 npm run brief -- --date=2026-09-02     # rebuild a specific day
 npm run brief -- --auto --dry-run      # preview generated stories, write nothing
 npm run brief -- --auto --stories=5    # ignore any authored file
-npm run summarize -- --limit=25        # bounded batch
-npm run summarize -- --all             # re-do everything
+npm run summarize -- --limit=25
+```
+
+From Windows, ship a commit to the home server (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#updating-production)):
+
+```powershell
+$env:WATCHFLOOR_SSH_USER = "your-linux-login"
+.\scripts\ship.ps1
 ```
 
 ## How summarisation works
 
-There are two products, and they do not share an engine.
+Two products, two engines.
 
-- **Each article** is tagged and summarised by the rules engine: keyword
-  classification plus extractive sentences. Collection stays fast and offline.
-- **The daily brief** is the only LLM job. Clusters of corroborating reports
-  are handed to the local model, which writes the items and the bottom line.
-  If the host is down, the same clusters are written extractively instead.
+- **Each article** is tagged and summarised by the rules engine. Collection stays fast and offline.
+- **The daily brief** is the only LLM job. Clusters of corroborating reports go to LM Studio, which writes the items and the bottom line. If that host is down, the same clusters are written extractively instead.
 
 | Provider | `SUMMARIZER` | What the LLM writes |
 |---|---|---|
-| Rules engine | `rules` (default) | Nothing — brief items are extractive too. |
-| Ollama | `ollama` | Daily brief items and the bottom line. |
-| LM Studio / OpenAI-compat | `openai` or `lmstudio` | Same, via `/v1/chat/completions` (LM Studio on port 1234). |
+| Rules engine | `rules` | Nothing — brief items are extractive too. |
+| LM Studio / OpenAI-compat | `openai` or `lmstudio` | Daily brief items and the BLUF, via `/v1/chat/completions`. |
+| Ollama | `ollama` | Same, if you point `OLLAMA_BASE_URL` at an Ollama host. |
 
-Leave `SUMMARIZER` pointed at the LLM permanently: if the host is off, the
-brief falls back to rules and the dashboard keeps working.
-
-Ingest never calls the model. `npm run brief` is the LLM pass.
+Leave `SUMMARIZER=lmstudio` set permanently. Ingest never calls the model.
 
 ### Authoring a brief by hand
 
-A file at `content/briefs/YYYY-MM-DD.json` always wins over generation for
-that date, so a written product is never clobbered by a scheduled run. See
-[`content/briefs/2026-09-02.json`](content/briefs/2026-09-02.json) for the
-shape. Each story's `match` array links it to ingested articles by headline
-substring, which populates "Related reporting" in the detail sheet.
+A file at `content/briefs/YYYY-MM-DD.json` always wins over generation for that date. See [`content/briefs/2026-09-02.json`](content/briefs/2026-09-02.json) for the shape. Each story's `match` array links it to ingested articles by headline substring.
 
-With no authored file, `npm run brief` clusters the last 30 hours of reporting
-by headline overlap, shared location and shared themes, ranks the clusters by
-urgency, corroboration and standing relevance, and writes up the top seven.
+### LM Studio on this PC
 
-### Enabling LM Studio
+1. Load the model. Turn **reasoning / thinking** off — Watchfloor needs a JSON object.
+2. Developer → start the server on port **1234**. For the home server, bind **0.0.0.0** / enable Serve on local network.
+3. Allow TCP 1234 from the LAN (elevated): `powershell -ExecutionPolicy Bypass -File scripts\windows-allow-lmstudio.ps1`
 
-In LM Studio: load the model, open **Developer**, start the local server
-(port **1234**). Turn **reasoning / thinking** off — Watchfloor needs a JSON
-object, not a chain of thought.
-
-```
-SUMMARIZER=lmstudio
-OPENAI_BASE_URL=http://127.0.0.1:1234/v1
-OPENAI_MODEL=
-LLM_TIMEOUT_MS=300000
-```
-
-Leave `OPENAI_MODEL` empty to use whatever is loaded. Pin it to the id from
-`GET http://localhost:1234/v1/models` if you run more than one.
+On this PC, a local `.env` can keep `OPENAI_BASE_URL=http://127.0.0.1:1234/v1`. On the server, `deploy/env.production` points at `http://192.168.8.60:1234/v1`.
 
 ```bash
-curl -s localhost:3050/api/summarizer   # degraded: false, openai reachable
-npm run brief -- --auto                 # LLM writes today's brief items
+curl -s localhost:3050/api/summarizer   # degraded: false when LM Studio is up
 ```
 
-### Enabling Ollama
+## Feeds
 
-```bash
-ollama pull llama3.1:8b
-```
+Curated list: [`config/feeds.ts`](config/feeds.ts).
 
-```
-SUMMARIZER=ollama
-OLLAMA_BASE_URL=http://192.168.1.50:11434   # wherever the model runs
-OLLAMA_MODEL=llama3.1:8b
-```
+## Notes
 
-```bash
-curl -s localhost:3050/api/summarizer   # confirm reachable, not degraded
-npm run brief -- --auto
-```
+- News is ingested via **RSS plus on-page extraction** of the publisher's own article HTML — no paywall circumvention. Follow the source link to read the full piece.
+- The classification strip (`OSINT // UNCLASSIFIED`) is cosmetic.
+- Geolocation uses a small place gazetteer; refine pins in authored briefs as needed.
+- Adding the dashboard to a phone home screen over plain HTTP is a bookmark. Chrome only hides the address bar permanently (installed WebAPK) on HTTPS, for example a Tailscale link. The in-app fullscreen control still works on HTTP.
 
-Full network setup, including binding Ollama to the LAN, is in
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#adding-the-ollama-summariser).
-
-### Feeds
-
-Curated list: [`config/feeds.ts`](config/feeds.ts). Lanes: UK, UK Defence, Conflict, Oil & Gas, Markets, Cyber, Intel.
-
-### Home server (Docker)
-
-```bash
-docker compose up -d --build
-```
-
-SQLite persists in the `watchfloor-data` volume. Point `OLLAMA_BASE_URL` at your host Ollama if needed.
-
-### Notes
-
-- News is ingested via **RSS plus on-page extraction** of the publisher's own article HTML — no paywall circumvention. Only headlines, short extracts and links are stored; follow the source link to read the full piece.
-- Classification strip is cosmetic (`OSINT // UNCLASSIFIED`) for UI feel only.
-- Geolocation uses a small place gazetteer — refine pins in brief stories as needed.
-- Summaries are rule-based extraction, not generative. Expect the odd awkward sentence until Ollama is wired in.
-
-### Credits
+## Credits
 
 Globe textures are NASA imagery in the public domain: [Blue Marble](https://visibleearth.nasa.gov/images/57752/blue-marble-land-surface-shallow-water-and-shaded-topography) for the daylit side and [VIIRS Black Marble](https://visibleearth.nasa.gov/images/79765/night-lights-2012-map) for night lights. Country boundaries derive from [Natural Earth](https://www.naturalearthdata.com/) via world-atlas.

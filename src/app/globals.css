@@ -140,6 +140,13 @@ body {
   overscroll-behavior: none;
 }
 
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html,
+  body {
+    height: 100svh;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

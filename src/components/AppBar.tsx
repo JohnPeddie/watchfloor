@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon, WatchfloorMark } from "@/components/Icon";
 import { dtg } from "@/lib/dtg";
 import { useTheme } from "@/lib/use-theme";
+import { usePwa } from "@/lib/use-pwa";
 import { FLOOR_VIEWS, type FloorView } from "@/lib/floor";
 
 type AppBarProps = {
@@ -19,6 +20,8 @@ type AppBarProps = {
   showViews?: boolean;
   /** Cover screen, or the inner screen in landscape — keep to a single row. */
   dense?: boolean;
+  /** True when the configured LLM host cannot be reached. */
+  llmOffline?: boolean;
 };
 
 export function AppBar({
@@ -33,9 +36,11 @@ export function AppBar({
   onViewChange,
   showViews = false,
   dense = false,
+  llmOffline = false,
 }: AppBarProps) {
   const [now, setNow] = useState<Date | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const { standalone, fullscreen, toggleFullscreen } = usePwa();
 
   useEffect(() => {
     setNow(new Date());
@@ -132,6 +137,19 @@ export function AppBar({
           </span>
         </div>
 
+        {llmOffline && (
+          <div
+            className="md-mono max-w-[7.5rem] truncate rounded-full px-2.5 py-1 text-[10px] font-semibold sm:max-w-[16rem]"
+            title="LM Studio on the workstation is unreachable. Watchfloor still runs; daily briefs fall back to the rules engine until it is back."
+            style={{
+              background: "var(--md-error-container)",
+              color: "var(--md-error)",
+            }}
+          >
+            {dense ? "LLM off" : "LLM offline — briefs use rules"}
+          </div>
+        )}
+
         <button
           type="button"
           className="md-icon-btn"
@@ -141,6 +159,18 @@ export function AppBar({
         >
           <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={19} />
         </button>
+
+        {!standalone && (
+          <button
+            type="button"
+            className="md-icon-btn"
+            onClick={() => void toggleFullscreen()}
+            aria-label={fullscreen ? "Show browser chrome" : "Hide address bar"}
+            title={fullscreen ? "Exit fullscreen" : "Hide address bar"}
+          >
+            <Icon name={fullscreen ? "fullscreen_exit" : "fullscreen"} size={19} />
+          </button>
+        )}
 
         <button
           type="button"

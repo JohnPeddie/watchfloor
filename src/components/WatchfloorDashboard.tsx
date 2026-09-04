@@ -17,6 +17,7 @@ import { useFloorKind, useIsShortInner } from "@/lib/use-media";
 import { buildSourceWeb } from "@/lib/source-web";
 import type { FloorView } from "@/lib/floor";
 import type { MarketQuote } from "@/lib/markets";
+import type { HazardsPayload } from "@/lib/hazard-geometry";
 import type {
   ArticleDTO,
   BriefDTO,
@@ -43,6 +44,11 @@ export function WatchfloorDashboard() {
   const [articles, setArticles] = useState<ArticleDTO[]>([]);
   const [allArticles, setAllArticles] = useState<ArticleDTO[]>([]);
   const [markets, setMarkets] = useState<MarketQuote[]>([]);
+  const [hazards, setHazards] = useState<HazardsPayload>({
+    warzones: [],
+    storms: [],
+    fetchedAt: "",
+  });
   const [tagCounts, setTagCounts] = useState<Record<string, number>>({});
   const [precedenceCounts, setPrecedenceCounts] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
@@ -57,6 +63,7 @@ export function WatchfloorDashboard() {
   const [rebuilding, setRebuilding] = useState(false);
   const [showImagery, setShowImagery] = useState(true);
   const [showBoundaries, setShowBoundaries] = useState(true);
+  const [showHazards, setShowHazards] = useState(true);
   const [pane, setPane] = useState<PaneId>("brief");
   const [view, setView] = useState<FloorView>("brief");
   const [summarizer, setSummarizer] = useState<SummarizerStatus | null>(null);
@@ -67,6 +74,9 @@ export function WatchfloorDashboard() {
   const isInner = floor === "inner";
   const isDesktop = floor === "desktop";
   const denseChrome = isCompact || (isInner && shortInner);
+  const llmOffline = Boolean(
+    summarizer && summarizer.configured !== "rules" && summarizer.degraded,
+  );
 
   const loadFiltered = useCallback(async () => {
     const params = new URLSearchParams({ limit: "150" });
@@ -84,7 +94,7 @@ export function WatchfloorDashboard() {
   const loadBase = useCallback(async () => {
     const [briefRes, allRes, marketsRes, summarizerRes] = await Promise.all([
       fetch("/api/brief").then((r) => r.json()),
-      fetch("/api/articles?limit=200").then((r) => r.json()),
+      fetch("/api/articles?limit=300").then((r) => r.json()),
       fetch("/api/markets").then((r) => r.json()),
       // Non-critical: a failed probe should not blank the dashboard.
       fetch("/api/summarizer")
@@ -95,11 +105,38 @@ export function WatchfloorDashboard() {
     setAllArticles(allRes.articles ?? []);
     setMarkets(marketsRes.markets ?? []);
     setSummarizer(summarizerRes ?? null);
+    void fetch("/api/hazards")
+      .then((r) => r.json())
+      .then((hazardsRes) => {
+        if (hazardsRes?.warzones || hazardsRes?.storms) {
+          setHazards({
+            warzones: hazardsRes.warzones ?? [],
+            storms: hazardsRes.storms ?? [],
+            fetchedAt: hazardsRes.fetchedAt ?? "",
+          });
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
     void loadBase();
   }, [loadBase]);
+
+  useEffect(() => {
+    const probe = () => {
+      void fetch("/api/summarizer")
+        .then((r) => r.json())
+        .then((status) => setSummarizer(status))
+        .catch(() => {
+          setSummarizer((prev) =>
+            prev && prev.configured !== "rules" ? { ...prev, degraded: true } : prev,
+          );
+        });
+    };
+    const id = window.setInterval(probe, 45_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const id = setTimeout(() => void loadFiltered(), query ? 250 : 0);
@@ -275,7 +312,11 @@ export function WatchfloorDashboard() {
   const globeCaption =
     globeLinks.length > 0
       ? `${globeLinks.length} sources feeding ${selectedStory?.placeLabel ?? "this item"}`
-      : `${globePins.length} contacts · ${plottedImages} with imagery · live day/night`;
+      : `${globePins.length} contacts · ${plottedImages} with imagery · ${
+          showHazards
+            ? `${hazards.warzones.length} warzones · ${hazards.storms.length} storms · `
+            : ""
+        }live day/night`;
 
   const briefPane = (
     <BriefPane
@@ -330,6 +371,15 @@ export function WatchfloorDashboard() {
             <Icon name="public" size={13} />
             <span className="globe-chip-label">Borders</span>
           </button>
+          <button
+            type="button"
+            className="md-chip md-chip-filter"
+            aria-pressed={showHazards}
+            onClick={() => setShowHazards((v) => !v)}
+          >
+            <Icon name="radar" size={13} />
+            <span className="globe-chip-label">Hazards</span>
+          </button>
           {focus && (
             <button
               type="button"
@@ -352,6 +402,8 @@ export function WatchfloorDashboard() {
         onSelectPin={onSelectPin}
         showImagery={showImagery && globeLinks.length === 0}
         showBoundaries={showBoundaries}
+        showHazards={showHazards}
+        hazards={hazards}
       />
     </section>
   );
@@ -473,7 +525,23 @@ export function WatchfloorDashboard() {
           onViewChange={changeView}
           showViews={isInner}
           dense={denseChrome}
+          llmOffline={llmOffline}
         />
+
+        {llmOffline && (
+          <div
+            className={`leading-snug ${denseChrome ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-[11px]"}`}
+            role="status"
+            style={{
+              background: "var(--md-error-container)",
+              color: "var(--md-error)",
+            }}
+          >
+            {denseChrome
+              ? "Local LLM summaries offline — briefs use rules until the workstation is back."
+              : "Local LLM summaries are offline. Watchfloor still runs; daily briefs use the rules engine until LM Studio on the workstation is reachable."}
+          </div>
+        )}
 
         {showLaneChips && (
           <LaneChips activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />

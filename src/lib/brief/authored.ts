@@ -64,7 +64,7 @@ async function findRelatedArticles(match: string[] | undefined): Promise<string[
   const rows = await prisma.article.findMany({
     select: { id: true, title: true, publishedAt: true },
     orderBy: { publishedAt: "desc" },
-    take: 400,
+    take: 300,
   });
 
   const needles = match.map((m) => m.toLowerCase());

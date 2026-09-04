@@ -2,21 +2,41 @@ import { prisma } from "./db";
 
 export type MarketPoint = { t: string; v: number };
 
+export type MarketKind = "energy" | "benchmark" | "sector";
+
 export type MarketQuote = {
   symbol: string;
   label: string;
+  kind: MarketKind;
   price: number;
   changePct: number | null;
   series: MarketPoint[];
   fetchedAt: string;
 };
 
-const SYMBOLS = [
-  { symbol: "BZ=F", label: "Brent Crude", yahoo: "BZ=F" },
-  { symbol: "CL=F", label: "WTI Crude", yahoo: "CL=F" },
-  { symbol: "GBPUSD=X", label: "GBP/USD", yahoo: "GBPUSD=X" },
-  { symbol: "^FTSE", label: "FTSE 100", yahoo: "^FTSE" },
-] as const;
+type SymbolDef = {
+  symbol: string;
+  label: string;
+  yahoo: string;
+  kind: MarketKind;
+};
+
+/**
+ * Live quotes. Energy is front-month crude. Benchmarks are the index and FX
+ * pair. Sectors are liquid ETFs used as proxies for the industries that show
+ * up in the reporting — not a substitute for watching individual names.
+ */
+const SYMBOLS: SymbolDef[] = [
+  { symbol: "BZ=F", label: "Brent Crude", yahoo: "BZ=F", kind: "energy" },
+  { symbol: "CL=F", label: "WTI Crude", yahoo: "CL=F", kind: "energy" },
+  { symbol: "GBPUSD=X", label: "GBP/USD", yahoo: "GBPUSD=X", kind: "benchmark" },
+  { symbol: "^FTSE", label: "FTSE 100", yahoo: "^FTSE", kind: "benchmark" },
+  { symbol: "XLK", label: "Tech", yahoo: "XLK", kind: "sector" },
+  { symbol: "ITA", label: "Defence", yahoo: "ITA", kind: "sector" },
+  { symbol: "XLE", label: "Oil & Gas", yahoo: "XLE", kind: "sector" },
+  { symbol: "AIQ", label: "AI", yahoo: "AIQ", kind: "sector" },
+  { symbol: "CIBR", label: "Cyber", yahoo: "CIBR", kind: "sector" },
+];
 
 type YahooChart = {
   chart?: {
@@ -68,77 +88,95 @@ async function fetchYahooSeries(yahooSymbol: string): Promise<{
 }
 
 const CACHE_MS = 30 * 60 * 1000;
+const FETCH_CONCURRENCY = 3;
 
-export async function getMarkets(force = false): Promise<MarketQuote[]> {
-  const quotes: MarketQuote[] = [];
+function quoteFromCache(
+  def: SymbolDef,
+  cached: {
+    symbol: string;
+    price: number;
+    changePct: number | null;
+    seriesJson: string;
+    fetchedAt: Date;
+  },
+): MarketQuote {
+  return {
+    symbol: cached.symbol,
+    label: def.label,
+    kind: def.kind,
+    price: cached.price,
+    changePct: cached.changePct,
+    series: JSON.parse(cached.seriesJson) as MarketPoint[],
+    fetchedAt: cached.fetchedAt.toISOString(),
+  };
+}
 
-  for (const def of SYMBOLS) {
-    const cached = await prisma.marketSnapshot.findUnique({
-      where: { symbol: def.symbol },
-    });
-    const age = cached ? Date.now() - cached.fetchedAt.getTime() : Infinity;
-    if (!force && cached && age < CACHE_MS && cached.price > 0) {
-      quotes.push({
-        symbol: cached.symbol,
-        label: cached.label,
-        price: cached.price,
-        changePct: cached.changePct,
-        series: JSON.parse(cached.seriesJson) as MarketPoint[],
-        fetchedAt: cached.fetchedAt.toISOString(),
-      });
-      continue;
-    }
-
-    try {
-      const { series, price, changePct } = await fetchYahooSeries(def.yahoo);
-      const saved = await prisma.marketSnapshot.upsert({
-        where: { symbol: def.symbol },
-        create: {
-          symbol: def.symbol,
-          label: def.label,
-          price,
-          changePct,
-          seriesJson: JSON.stringify(series),
-          fetchedAt: new Date(),
-        },
-        update: {
-          label: def.label,
-          price,
-          changePct,
-          seriesJson: JSON.stringify(series),
-          fetchedAt: new Date(),
-        },
-      });
-      quotes.push({
-        symbol: saved.symbol,
-        label: saved.label,
-        price: saved.price,
-        changePct: saved.changePct,
-        series,
-        fetchedAt: saved.fetchedAt.toISOString(),
-      });
-    } catch {
-      if (cached && cached.price > 0) {
-        quotes.push({
-          symbol: cached.symbol,
-          label: cached.label,
-          price: cached.price,
-          changePct: cached.changePct,
-          series: JSON.parse(cached.seriesJson) as MarketPoint[],
-          fetchedAt: cached.fetchedAt.toISOString(),
-        });
-      } else {
-        quotes.push({
-          symbol: def.symbol,
-          label: def.label,
-          price: 0,
-          changePct: null,
-          series: [],
-          fetchedAt: new Date().toISOString(),
-        });
-      }
-    }
+async function quoteForSymbol(def: SymbolDef, force: boolean): Promise<MarketQuote> {
+  const cached = await prisma.marketSnapshot.findUnique({
+    where: { symbol: def.symbol },
+  });
+  const age = cached ? Date.now() - cached.fetchedAt.getTime() : Infinity;
+  if (!force && cached && age < CACHE_MS && cached.price > 0) {
+    return quoteFromCache(def, cached);
   }
 
-  return quotes;
+  try {
+    const { series, price, changePct } = await fetchYahooSeries(def.yahoo);
+    const saved = await prisma.marketSnapshot.upsert({
+      where: { symbol: def.symbol },
+      create: {
+        symbol: def.symbol,
+        label: def.label,
+        price,
+        changePct,
+        seriesJson: JSON.stringify(series),
+        fetchedAt: new Date(),
+      },
+      update: {
+        label: def.label,
+        price,
+        changePct,
+        seriesJson: JSON.stringify(series),
+        fetchedAt: new Date(),
+      },
+    });
+    return {
+      symbol: saved.symbol,
+      label: def.label,
+      kind: def.kind,
+      price: saved.price,
+      changePct: saved.changePct,
+      series,
+      fetchedAt: saved.fetchedAt.toISOString(),
+    };
+  } catch {
+    if (cached && cached.price > 0) return quoteFromCache(def, cached);
+    return {
+      symbol: def.symbol,
+      label: def.label,
+      kind: def.kind,
+      price: 0,
+      changePct: null,
+      series: [],
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+}
+
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  }
+  const workers = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
+}
+
+export async function getMarkets(force = false): Promise<MarketQuote[]> {
+  return mapPool(SYMBOLS, FETCH_CONCURRENCY, (def) => quoteForSymbol(def, force));
 }

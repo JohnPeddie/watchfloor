@@ -214,12 +214,12 @@ async function health(): Promise<ProviderHealth> {
         : `Model "${wanted}" not loaded. Available: ${installed.join(", ")}`,
       latencyMs: Date.now() - started,
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+  } catch {
     return {
       ...base,
       reachable: false,
-      detail: `${baseUrl()} unreachable (${message})`,
+      detail:
+        "LM Studio is not reachable. The dashboard still runs; daily briefs will use the rules engine until that machine is back.",
       latencyMs: Date.now() - started,
     };
   } finally {
