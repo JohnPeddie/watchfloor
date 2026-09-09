@@ -18,9 +18,10 @@ if grep -Eq 'YOUR_LLM_HOST|YOUR_SERVER|YOUR_SSH_USER' .env; then
 fi
 
 if [ -d .git ]; then
-  echo "Pulling origin/main…"
+  echo "Resetting to origin/main…"
   git fetch origin
-  git pull --ff-only origin main
+  git reset --hard origin/main
+  chmod +x scripts/deploy.sh scripts/update-if-changed.sh 2>/dev/null || true
 fi
 
 echo "Building and starting containers…"
