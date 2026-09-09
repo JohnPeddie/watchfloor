@@ -6,6 +6,30 @@ import type { WeatherCityHit } from "@/lib/weather-types";
 
 const PANEL_WIDTH = 272;
 const VIEWPORT_MARGIN = 8;
+const PANEL_MIN_VISIBLE = 120;
+
+type PanelPosition = { top: number; left: number; width: number };
+
+function iconPanelPosition(button: HTMLElement): PanelPosition {
+  const rect = button.getBoundingClientRect();
+  const vv = window.visualViewport;
+  const viewLeft = vv?.offsetLeft ?? 0;
+  const viewTop = vv?.offsetTop ?? 0;
+  const viewWidth = vv?.width ?? window.innerWidth;
+  const viewHeight = vv?.height ?? window.innerHeight;
+  const width = Math.min(PANEL_WIDTH, Math.max(196, viewWidth - VIEWPORT_MARGIN * 2));
+  const left = Math.min(
+    Math.max(viewLeft + VIEWPORT_MARGIN, rect.right - width),
+    viewLeft + viewWidth - width - VIEWPORT_MARGIN,
+  );
+  const estimatedHeight = 240;
+  const below = rect.bottom + 6;
+  const fitsBelow = below + estimatedHeight <= viewTop + viewHeight - VIEWPORT_MARGIN;
+  let top = fitsBelow ? below : Math.max(viewTop + VIEWPORT_MARGIN, rect.top - estimatedHeight - 6);
+  top = Math.min(top, viewTop + viewHeight - VIEWPORT_MARGIN - PANEL_MIN_VISIBLE);
+  top = Math.max(top, viewTop + VIEWPORT_MARGIN);
+  return { top, left, width };
+}
 
 type CitySearchProps = {
   city: string;
@@ -21,7 +45,7 @@ export function CitySearch({ city, disabled, variant = "field", onSelect }: City
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<PanelPosition | null>(null);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<WeatherCityHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,12 +65,7 @@ export function CitySearch({ city, disabled, variant = "field", onSelect }: City
   const openSearch = useCallback(() => {
     const button = buttonRef.current;
     if (variant === "icon" && button) {
-      const rect = button.getBoundingClientRect();
-      const left = Math.min(
-        Math.max(VIEWPORT_MARGIN, rect.right - PANEL_WIDTH),
-        window.innerWidth - PANEL_WIDTH - VIEWPORT_MARGIN,
-      );
-      setPosition({ top: rect.bottom + 6, left });
+      setPosition(iconPanelPosition(button));
     }
     setOpen(true);
   }, [variant]);
@@ -65,19 +84,31 @@ export function CitySearch({ city, disabled, variant = "field", onSelect }: City
     };
     window.addEventListener("pointerdown", onPointer, true);
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
     return () => {
       window.removeEventListener("pointerdown", onPointer, true);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
     };
   }, [open, close]);
 
   useEffect(() => {
+    if (!open || variant !== "icon") return;
+    const onView = () => {
+      const button = buttonRef.current;
+      if (button) setPosition(iconPanelPosition(button));
+    };
+    window.addEventListener("resize", onView);
+    window.visualViewport?.addEventListener("resize", onView);
+    window.visualViewport?.addEventListener("scroll", onView);
+    return () => {
+      window.removeEventListener("resize", onView);
+      window.visualViewport?.removeEventListener("resize", onView);
+      window.visualViewport?.removeEventListener("scroll", onView);
+    };
+  }, [open, variant]);
+
+  useEffect(() => {
     if (!open) return;
-    inputRef.current?.focus();
+    inputRef.current?.focus({ preventScroll: true });
   }, [open]);
 
   useEffect(() => {
@@ -173,15 +204,17 @@ export function CitySearch({ city, disabled, variant = "field", onSelect }: City
   const searchField = (
     <input
       ref={inputRef}
-      type="search"
+      type="text"
+      inputMode="search"
+      enterKeyHint="search"
       className="md-field"
       value={query}
       disabled={saving}
       placeholder="Search for a city"
       autoComplete="off"
+      autoCorrect="off"
       spellCheck={false}
       aria-label="Search for a weather city"
-      aria-expanded
       aria-controls="weather-city-results"
       onChange={(event) => setQuery(event.target.value)}
       onKeyDown={onKeyDown}
@@ -213,7 +246,7 @@ export function CitySearch({ city, disabled, variant = "field", onSelect }: City
             style={{
               top: position.top,
               left: position.left,
-              width: PANEL_WIDTH,
+              width: position.width,
               background: "var(--md-container-high)",
               boxShadow: "var(--elev-4)",
             }}
