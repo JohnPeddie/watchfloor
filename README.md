@@ -15,7 +15,7 @@ before you deploy.
 
 ## What it does
 
-- **Ingests** curated RSS feeds across UK, defence, conflict, cyber, energy, markets, tech, US, sport, and intel. Holdings size is set in Settings (default 300); oldest drop first. General news feeds take a full ingest quota; niche sport feeds take a quarter so they cannot crowd the stream.
+- **Ingests** curated RSS feeds across UK, defence, conflict, cyber, energy, markets, tech, US, sport, and intel. Holdings size is set in Settings (default 300); oldest drop first. UK desk and defence feeds take a full ingest quota; US political, consumer-tech, and US market wires take about a third; niche sport feeds take a quarter so they cannot crowd the stream.
 - **Extracts** the article body and usable images from each source page.
 - **Classifies** each item with sector tags, a signal precedence (`FLASH` / `IMMEDIATE` / `PRIORITY` / `ROUTINE`), and an Admiralty-code source grade. That path is rules-only — the model never summarises the whole stream.
 - **Briefs** the day: at least five stories, more when the day is busy. A local LLM writes those items and the BLUF when it is reachable.

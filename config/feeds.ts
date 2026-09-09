@@ -35,8 +35,9 @@ export type FeedConfig = {
   grade: SourceGrade;
   bureau: Bureau;
   /**
-   * Share of the per-feed ingest cap. General news is 1.
-   * Niche verticals (F1, etc.) take a smaller cut so they cannot crowd BBC-scale outlets.
+   * Share of the per-feed ingest cap. Omit to use ingestWeight(): UK desk
+   * feeds are 1, US political / consumer-tech / US market wires about a third,
+   * sport a quarter.
    */
   weight?: number;
 };
@@ -483,17 +484,41 @@ export function feedByCode(code: string): FeedConfig | undefined {
   return FEEDS.find((f) => f.code === code);
 }
 
+/** Full cap — UK news, UK defence, conflict, cyber, energy, UK market desks. */
+export const INGEST_WEIGHT_FULL = 1;
+/** US political wires, consumer tech, and US market tickers. */
+export const INGEST_WEIGHT_SECONDARY = 0.35;
+/** Sport-only outlets. */
+export const INGEST_WEIGHT_SPORT = 0.25;
+
+function isUkBureau(bureau: Bureau): boolean {
+  const label = bureau.label.toLowerCase();
+  return (
+    label.includes("london") ||
+    label.includes("whitehall") ||
+    label.includes("scotland")
+  );
+}
+
 /**
- * How much of the ingest cap a feed may take. Sport-only outlets default to a
- * quarter so Autosport cannot match BBC item-for-item.
+ * How much of the ingest cap a feed may take. The desk is UK-first: a BBC UK
+ * item should beat The Hill, The Verge, or Nasdaq item-for-item. Explicit
+ * `weight` on a feed still wins.
  */
 export function ingestWeight(feed: FeedConfig | undefined): number {
-  if (!feed) return 1;
+  if (!feed) return INGEST_WEIGHT_FULL;
   if (feed.weight != null) {
     return Math.min(1, Math.max(0.1, feed.weight));
   }
-  if (feed.lanes.length === 1 && feed.lanes[0] === "sport") return 0.25;
-  return 1;
+  const lanes = new Set(feed.lanes);
+  if (lanes.size === 1 && lanes.has("sport")) return INGEST_WEIGHT_SPORT;
+  if (lanes.has("uk") || lanes.has("uk-defence")) return INGEST_WEIGHT_FULL;
+  if (lanes.has("us") && !lanes.has("war")) return INGEST_WEIGHT_SECONDARY;
+  if (lanes.has("tech") && !lanes.has("cyber")) return INGEST_WEIGHT_SECONDARY;
+  if (lanes.has("markets") && !lanes.has("oil-gas") && !isUkBureau(feed.bureau)) {
+    return INGEST_WEIGHT_SECONDARY;
+  }
+  return INGEST_WEIGHT_FULL;
 }
 
 export function ingestCap(feed: FeedConfig, maxPerFeed: number): number {

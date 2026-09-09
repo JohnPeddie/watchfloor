@@ -30,6 +30,8 @@ const paths: Record<string, string> = {
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.2 3.1.8-1.3-4.5-2.7V7z",
   insights:
     "M21 8a2 2 0 0 1-2-2 2 2 0 1 1 2 2zm-6.9 2.1a2 2 0 0 1-3.1 1.7l-2.4 2.4A2 2 0 1 1 5 13.5l2.4-2.4a2 2 0 0 1 2.7-2.4L12.5 6A2 2 0 1 1 16 8.4l-1.9 1.7zM3 21h18v-2H3v2z",
+  dashboard:
+    "M3 3h8v8H3V3zm2 2v4h4V5H5zM13 3h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zM13 13h8v8h-8v-8zm2 2v4h4v-4h-4z",
   layers:
     "m12 16.5 7.4-5.8 1.6 1.3-9 7-9-7 1.6-1.2 7.4 5.7zM12 2l9 7-9 7-9-7 9-7zm0 2.5L6.2 9 12 13.5 17.8 9 12 4.5z",
   light_mode:
@@ -54,6 +56,8 @@ const paths: Record<string, string> = {
   expand_more: "M16.6 8.6 12 13.2 7.4 8.6 6 10l6 6 6-6-1.4-1.4z",
 };
 
+const evenodd = new Set(["dashboard"]);
+
 export function Icon({ name, size = 20, className }: IconProps & { name: keyof typeof paths | string }) {
   const d = paths[name] ?? paths.article;
   return (
@@ -65,7 +69,7 @@ export function Icon({ name, size = 20, className }: IconProps & { name: keyof t
       className={className}
       aria-hidden
     >
-      <path d={d} />
+      <path d={d} fillRule={evenodd.has(name) ? "evenodd" : undefined} />
     </svg>
   );
 }

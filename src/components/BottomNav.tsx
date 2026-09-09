@@ -9,7 +9,7 @@ const DESTINATIONS: { id: PaneId; label: string; icon: string }[] = [
   { id: "brief", label: "Brief", icon: "article" },
   { id: "articles", label: "Articles", icon: "radar" },
   { id: "map", label: "Globe", icon: "public" },
-  { id: "markets", label: "Desk", icon: "insights" },
+  { id: "markets", label: "Desk", icon: "dashboard" },
 ];
 
 type BottomNavProps = {

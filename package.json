@@ -9,7 +9,7 @@
     "start": "next start -p 3050",
     "lint": "eslint",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "npm run typecheck && tsx --test tests/build-guards.test.ts tests/source-web.test.ts",
+    "test": "npm run typecheck && tsx --test tests/build-guards.test.ts tests/source-web.test.ts tests/feeds.test.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
