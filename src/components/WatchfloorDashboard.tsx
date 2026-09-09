@@ -21,6 +21,7 @@ import type { MarketQuote } from "@/lib/markets";
 import type { ThreatPayload } from "@/lib/threat-types";
 import type { WeatherPayload } from "@/lib/weather-types";
 import type { HazardsPayload } from "@/lib/hazard-geometry";
+import { buildSourceWeb } from "@/lib/source-web";
 import type {
   ArticleDTO,
   BriefDTO,
@@ -200,7 +201,7 @@ export function WatchfloorDashboard() {
 
     const storyPins: GlobePin[] =
       brief?.stories
-        .map((s) => {
+        .map((s): GlobePin | null => {
           const place = plotLocation({
             id: s.id,
             title: s.headline,
@@ -213,7 +214,7 @@ export function WatchfloorDashboard() {
           if (!place) return null;
           return {
             id: `story:${s.id}`,
-            kind: "story" as const,
+            kind: "story",
             label: s.headline,
             lat: place.lat,
             lng: place.lng,
@@ -225,7 +226,7 @@ export function WatchfloorDashboard() {
         .filter((pin): pin is GlobePin => pin != null) ?? [];
 
     const articlePins: GlobePin[] = articles
-      .map((a) => {
+      .map((a): GlobePin | null => {
         const place = plotLocation({
           id: a.id,
           title: a.title,
@@ -239,7 +240,7 @@ export function WatchfloorDashboard() {
         if (!place) return null;
         return {
           id: `article:${a.id}`,
-          kind: "article" as const,
+          kind: "article",
           label: a.title,
           lat: place.lat,
           lng: place.lng,

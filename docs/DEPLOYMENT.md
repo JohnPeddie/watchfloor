@@ -196,7 +196,7 @@ Changes do not appear on the dashboard host until that machine pulls and rebuild
 .\scripts\ship.ps1
 ```
 
-`ship.ps1` runs `git push origin HEAD`, SSHs to the host in `.env`, and runs `scripts/deploy.sh` (fast-forward `main`, `docker compose up -d --build`). SQLite in the volume is not wiped.
+`ship.ps1` runs `npm test` first, then `git push origin HEAD`, SSHs to the host in `.env`, and runs `scripts/deploy.sh` (fast-forward `main`, `docker compose up -d --build`). SQLite in the volume is not wiped.
 
 Rebuild-only, if you already pushed:
 

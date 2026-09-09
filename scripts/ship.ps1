@@ -51,6 +51,15 @@ Or pass -Server and -User.
 "@
 }
 
+Write-Host "Running tests (the same checks Docker next build uses for types)…"
+Push-Location $Root
+npm test
+$testStatus = $LASTEXITCODE
+Pop-Location
+if ($testStatus -ne 0) {
+  Write-Error "Tests failed. Not shipping."
+}
+
 if (-not $SkipPush) {
   Write-Host "Pushing HEAD to origin…"
   git push origin HEAD

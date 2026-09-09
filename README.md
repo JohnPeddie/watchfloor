@@ -113,6 +113,8 @@ npm run where
 | `npm run reclassify` | Re-apply tag/precedence rules to stored articles |
 | `npm run stats` | Report enrichment coverage |
 | `npm run where` | Print every URL the dashboard is reachable on |
+| `npm test` | Typecheck plus guards for errors that have broken the Docker `next build` |
+| `npm run typecheck` | TypeScript only (`tsc --noEmit`) |
 | `npm run dev` | Local Next.js server |
 | `npm run dev:lan` | Dev server bound to all interfaces |
 | `npm run build && npm start` | Production mode on this machine |
