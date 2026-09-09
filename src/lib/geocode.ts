@@ -10,7 +10,7 @@ export const GAZETTEER: Place[] = [
   { label: "London", lat: 51.5074, lng: -0.1278, aliases: ["london", "uk", "united kingdom", "britain", "england", "westminster", "whitehall"] },
   { label: "Scotland", lat: 55.9533, lng: -3.1883, aliases: ["scotland", "edinburgh", "glasgow"] },
   { label: "North Sea", lat: 56.5, lng: 2.0, aliases: ["north sea", "brent", "forties"] },
-  { label: "Washington D.C.", lat: 38.9072, lng: -77.0369, aliases: ["washington", "white house", "pentagon", "u.s.", "united states", "america"] },
+  { label: "Washington D.C.", lat: 38.9072, lng: -77.0369, aliases: ["washington", "washington dc", "washington d.c.", "white house", "pentagon", "capitol hill"] },
   { label: "Moscow", lat: 55.7558, lng: 37.6173, aliases: ["moscow", "russia", "kremlin", "russian"] },
   { label: "Arctic", lat: 78.0, lng: 15.0, aliases: ["arctic", "svalbard", "barents", "northern fleet"] },
   { label: "Norway", lat: 59.9139, lng: 10.7522, aliases: ["norway", "oslo", "nordic"] },
@@ -19,7 +19,46 @@ export const GAZETTEER: Place[] = [
   { label: "Iran", lat: 32.4279, lng: 53.688, aliases: ["iran", "tehran", "iranian", "larak"] },
   { label: "Jordan", lat: 31.9539, lng: 35.9106, aliases: ["jordan", "amman"] },
   { label: "UAE", lat: 24.4539, lng: 54.3773, aliases: ["uae", "abu dhabi", "dubai", "emirates"] },
-  { label: "Grand Canyon", lat: 36.1069, lng: -112.1129, aliases: ["grand canyon", "arizona", "bright angel"] },
+  { label: "Grand Canyon", lat: 36.1069, lng: -112.1129, aliases: ["grand canyon", "bright angel"] },
+  { label: "New York", lat: 40.7128, lng: -74.006, aliases: ["new york", "nyc", "manhattan", "brooklyn"] },
+  { label: "Los Angeles", lat: 34.0522, lng: -118.2437, aliases: ["los angeles", "l.a."] },
+  { label: "San Francisco", lat: 37.7749, lng: -122.4194, aliases: ["san francisco", "bay area", "silicon valley"] },
+  { label: "Seattle", lat: 47.6062, lng: -122.3321, aliases: ["seattle"] },
+  { label: "Chicago", lat: 41.8781, lng: -87.6298, aliases: ["chicago"] },
+  { label: "Houston", lat: 29.7604, lng: -95.3698, aliases: ["houston"] },
+  { label: "Dallas", lat: 32.7767, lng: -96.797, aliases: ["dallas", "fort worth"] },
+  { label: "Austin", lat: 30.2672, lng: -97.7431, aliases: ["austin"] },
+  { label: "Denver", lat: 39.7392, lng: -104.9903, aliases: ["denver"] },
+  { label: "Phoenix", lat: 33.4484, lng: -112.074, aliases: ["phoenix"] },
+  { label: "Atlanta", lat: 33.749, lng: -84.388, aliases: ["atlanta"] },
+  { label: "Miami", lat: 25.7617, lng: -80.1918, aliases: ["miami"] },
+  { label: "Boston", lat: 42.3601, lng: -71.0589, aliases: ["boston"] },
+  { label: "Detroit", lat: 42.3314, lng: -83.0458, aliases: ["detroit"] },
+  { label: "Minneapolis", lat: 44.9778, lng: -93.265, aliases: ["minneapolis"] },
+  { label: "New Orleans", lat: 29.9511, lng: -90.0715, aliases: ["new orleans"] },
+  { label: "Las Vegas", lat: 36.1699, lng: -115.1398, aliases: ["las vegas"] },
+  { label: "Portland", lat: 45.5152, lng: -122.6784, aliases: ["portland"] },
+  { label: "Salt Lake City", lat: 40.7608, lng: -111.891, aliases: ["salt lake"] },
+  { label: "Kansas City", lat: 39.0997, lng: -94.5786, aliases: ["kansas city"] },
+  { label: "St. Louis", lat: 38.627, lng: -90.1994, aliases: ["st. louis", "st louis"] },
+  { label: "Philadelphia", lat: 39.9526, lng: -75.1652, aliases: ["philadelphia"] },
+  { label: "San Diego", lat: 32.7157, lng: -117.1611, aliases: ["san diego"] },
+  { label: "California", lat: 36.7783, lng: -119.4179, aliases: ["california"] },
+  { label: "Texas", lat: 31.0, lng: -100.0, aliases: ["texas"] },
+  { label: "Florida", lat: 27.7663, lng: -81.6868, aliases: ["florida"] },
+  { label: "Colorado", lat: 39.5501, lng: -105.7821, aliases: ["colorado"] },
+  { label: "Arizona", lat: 34.0489, lng: -111.0937, aliases: ["arizona"] },
+  { label: "Illinois", lat: 40.6331, lng: -89.3985, aliases: ["illinois"] },
+  { label: "Ohio", lat: 40.4173, lng: -82.9071, aliases: ["ohio"] },
+  { label: "Michigan", lat: 44.3148, lng: -85.6024, aliases: ["michigan"] },
+  { label: "Georgia", lat: 32.1656, lng: -82.9001, aliases: ["georgia"] },
+  { label: "North Carolina", lat: 35.7596, lng: -79.0193, aliases: ["north carolina"] },
+  { label: "Pennsylvania", lat: 41.2033, lng: -77.1945, aliases: ["pennsylvania"] },
+  { label: "Oregon", lat: 43.8041, lng: -120.5542, aliases: ["oregon"] },
+  { label: "Nevada", lat: 38.8026, lng: -116.4194, aliases: ["nevada"] },
+  { label: "Washington State", lat: 47.4009, lng: -121.4905, aliases: ["washington state"] },
+  { label: "Alaska", lat: 64.2008, lng: -149.4937, aliases: ["alaska"] },
+  { label: "Hawaii", lat: 21.3069, lng: -157.8583, aliases: ["hawaii", "honolulu"] },
   { label: "Niamey", lat: 13.5116, lng: 2.1254, aliases: ["niger", "niamey", "sahel"] },
   { label: "Palau", lat: 7.5149, lng: 134.5825, aliases: ["palau", "pacific islands forum", "pacific islands"] },
   { label: "Taiwan", lat: 23.6978, lng: 120.9605, aliases: ["taiwan", "taipei", "taiwan strait"] },
@@ -142,4 +181,91 @@ export function geocodeText(...parts: Array<string | null | undefined>): Place |
     }
   }
   return best?.place ?? null;
+}
+
+/** Continental US points used when a story is American but names no city. */
+const US_SPREAD: Place[] = [
+  { label: "United States", lat: 47.6062, lng: -122.3321, aliases: [] }, // Seattle
+  { label: "United States", lat: 45.5152, lng: -122.6784, aliases: [] }, // Portland
+  { label: "United States", lat: 37.7749, lng: -122.4194, aliases: [] }, // San Francisco
+  { label: "United States", lat: 34.0522, lng: -118.2437, aliases: [] }, // Los Angeles
+  { label: "United States", lat: 36.1699, lng: -115.1398, aliases: [] }, // Las Vegas
+  { label: "United States", lat: 33.4484, lng: -112.074, aliases: [] }, // Phoenix
+  { label: "United States", lat: 40.7608, lng: -111.891, aliases: [] }, // Salt Lake
+  { label: "United States", lat: 39.7392, lng: -104.9903, aliases: [] }, // Denver
+  { label: "United States", lat: 35.0844, lng: -106.6504, aliases: [] }, // Albuquerque
+  { label: "United States", lat: 32.7767, lng: -96.797, aliases: [] }, // Dallas
+  { label: "United States", lat: 29.7604, lng: -95.3698, aliases: [] }, // Houston
+  { label: "United States", lat: 29.9511, lng: -90.0715, aliases: [] }, // New Orleans
+  { label: "United States", lat: 35.2271, lng: -80.8431, aliases: [] }, // Charlotte
+  { label: "United States", lat: 33.749, lng: -84.388, aliases: [] }, // Atlanta
+  { label: "United States", lat: 41.8781, lng: -87.6298, aliases: [] }, // Chicago
+  { label: "United States", lat: 44.9778, lng: -93.265, aliases: [] }, // Minneapolis
+  { label: "United States", lat: 39.0997, lng: -94.5786, aliases: [] }, // Kansas City
+  { label: "United States", lat: 42.3314, lng: -83.0458, aliases: [] }, // Detroit
+  { label: "United States", lat: 38.627, lng: -90.1994, aliases: [] }, // St Louis
+  { label: "United States", lat: 39.9526, lng: -75.1652, aliases: [] }, // Philadelphia
+  { label: "United States", lat: 42.3601, lng: -71.0589, aliases: [] }, // Boston
+  { label: "United States", lat: 25.7617, lng: -80.1918, aliases: [] }, // Miami
+  { label: "United States", lat: 27.9506, lng: -82.4572, aliases: [] }, // Tampa
+  { label: "United States", lat: 36.1627, lng: -86.7816, aliases: [] }, // Nashville
+];
+
+const US_STORY = /\b(united states|\bu\.s\.a?\b|\bamerica\b|\bamerican\b)/iu;
+const DC_SPECIFIC = /\b(washington|white house|pentagon|capitol|d\.c\.|dc)\b/iu;
+
+function hash32(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function pickUsSpread(id: string): Place {
+  return US_SPREAD[hash32(id) % US_SPREAD.length]!;
+}
+
+function looksAmerican(text: string, tags?: string[], lanes?: string[]): boolean {
+  if (tags?.includes("US") || lanes?.includes("us")) return true;
+  return US_STORY.test(text);
+}
+
+function isGenericWashington(place: Place, text: string): boolean {
+  return place.label === "Washington D.C." && !DC_SPECIFIC.test(text);
+}
+
+/**
+ * Picks a globe coordinate. Specific cities win. Generic US copy is hashed
+ * across the continental US so it does not pile up on Washington.
+ */
+export function plotLocation(input: {
+  id: string;
+  title: string;
+  extra?: Array<string | null | undefined>;
+  tags?: string[];
+  lanes?: string[];
+  lat?: number | null;
+  lng?: number | null;
+  placeLabel?: string | null;
+}): { label: string; lat: number; lng: number } | null {
+  const parts = [input.title, input.placeLabel, ...(input.extra ?? [])];
+  const text = parts.filter(Boolean).join(" ");
+  const hit = geocodeText(...parts);
+
+  if (hit && !isGenericWashington(hit, input.title)) {
+    return { label: hit.label, lat: hit.lat, lng: hit.lng };
+  }
+
+  if (looksAmerican(text, input.tags, input.lanes)) {
+    const spread = pickUsSpread(input.id);
+    return { label: spread.label, lat: spread.lat, lng: spread.lng };
+  }
+
+  if (input.lat != null && input.lng != null && Number.isFinite(input.lat) && Number.isFinite(input.lng)) {
+    return { label: input.placeLabel ?? "Location unknown", lat: input.lat, lng: input.lng };
+  }
+
+  return null;
 }

@@ -1,8 +1,8 @@
 # WATCHFLOOR
 
 Personal OSINT command centre: a daily brief, RSS ingest, an interactive
-day/night globe, markets, and hazard overlays — presented as a Material 3
-watchfloor.
+day/night globe, a desk of weather and markets, and hazard overlays —
+presented as a Material 3 watchfloor.
 
 Runs on your own machines. No API keys, no cloud services, no paywalled
 scrapers.
@@ -19,8 +19,12 @@ before you deploy.
 - **Extracts** the article body and usable images from each source page.
 - **Classifies** each item with sector tags, a signal precedence (`FLASH` / `IMMEDIATE` / `PRIORITY` / `ROUTINE`), and an Admiralty-code source grade. That path is rules-only — the model never summarises the whole stream.
 - **Briefs** the day: at least five stories, more when the day is busy. A local LLM writes those items and the BLUF when it is reachable.
-- **Plots** geolocated stories on a globe with the real-time solar terminator, plus warzone and tropical-cyclone overlays.
+- **Plots** geolocated stories on a globe with the real-time solar terminator, plus warzone and tropical-cyclone overlays. How many photos sit on the globe is set in Settings; the rest are small yellow dots. Generic US reports are spread across the country rather than stacked on Washington.
 - **Tracks** Brent/WTI, FTSE, GBP/USD, and sector ETF proxies (tech, defence, oil & gas, AI, cyber).
+- **Checks** the weather: current conditions and a five-day outlook for a searchable city (Open-Meteo), plus UK Met Office warnings. Change city from the weather card or Settings.
+- **Shows** the live UK national terrorism threat level in the app bar (desktop), from the official MI5 feed. The chip opens [MI5’s threat-levels page](https://www.mi5.gov.uk/threats-and-advice/terrorism-threat-levels).
+
+Weather, warnings, and the threat chip are fail-soft: a down feed keeps the last good cache (or an empty card) and does not blank the dashboard.
 
 ## Layouts
 
@@ -28,12 +32,14 @@ The shell follows the device, not a collapsed version of the desktop.
 
 | Surface | What you get |
 | --- | --- |
-| PC / large desktop | Three-column watchfloor: lane rail, brief, globe over the stream, insight column. |
-| Laptop width | Brief + globe over the stream. Markets and the summariser card appear at desktop width; the LLM-offline strip in the app bar still shows. |
-| Tablet / foldable inner | Brief / Articles / Markets tabs, list beside the globe. |
-| Phone / foldable cover | One pane at a time with a bottom nav. |
+| PC / large desktop | Three-column watchfloor: lane rail, brief, globe over the stream, insight column. UK threat chip in the app bar. |
+| Laptop width | Brief + globe over the stream. The insight column and threat chip appear at desktop width; the LLM-offline strip in the app bar still shows. |
+| Tablet / foldable inner | Brief / Articles / Markets tabs, list beside the globe. Markets is the desk of insight cards. |
+| Phone / foldable cover | One pane at a time with a bottom nav: Brief, Articles, Globe, Desk. |
 
-Theme, settings, collect, fullscreen, and (when the model host is down) the LLM-offline warning sit in the app bar. Collection cadence, holdings size, brief slots, and which local model to use are in Settings.
+Theme, settings, collect, fullscreen, and (when the model host is down) the LLM-offline warning sit in the app bar. Collection cadence, holdings size, globe photos, weather city, insight-card order, brief slots, and which local model to use are in Settings.
+
+Reorder the desk cards (weather, energy, markets, sectors, precedence, classification, collection, summarisation) under Settings → Insights. The same order is used on the phone Desk tab, the tablet Markets tab, and the PC side pane.
 
 ## How classification works
 
@@ -169,8 +175,11 @@ Curated list: [`config/feeds.ts`](config/feeds.ts). Lanes on a feed seed sector 
 - News is ingested via **RSS plus on-page extraction** of the publisher's own article HTML — no paywall circumvention. Follow the source link to read the full piece.
 - The classification strip (`OSINT // UNCLASSIFIED`) is cosmetic. The real tags and precedence live on each article.
 - Geolocation uses a small place gazetteer; refine pins in authored briefs as needed.
+- Weather and the UK threat level are public HTTPS feeds. They need outbound access from the dashboard host; they do not need API keys.
 - Adding the dashboard to a phone home screen over plain HTTP is a bookmark. Chrome only hides the address bar permanently (installed WebAPK) on HTTPS. The in-app fullscreen control still works on HTTP.
 
 ## Credits
 
 Globe textures are NASA imagery in the public domain: [Blue Marble](https://visibleearth.nasa.gov/images/57752/blue-marble-land-surface-shallow-water-and-shaded-topography) for the daylit side and [VIIRS Black Marble](https://visibleearth.nasa.gov/images/79765/night-lights-2012-map) for night lights. Country boundaries derive from [Natural Earth](https://www.naturalearthdata.com/) via world-atlas.
+
+Forecast data by [Open-Meteo](https://open-meteo.com/). UK warnings from the [Met Office](https://www.metoffice.gov.uk/). National terrorism threat level from [MI5 / JTAC](https://www.mi5.gov.uk/threats-and-advice/terrorism-threat-levels). The weather card is a desk check, not a substitute for Met Office notices.

@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CitySearch } from "@/components/CitySearch";
 import { Icon } from "@/components/Icon";
 import { HelpButton } from "@/components/HelpButton";
 import type { OpsSnapshot } from "@/lib/serializers";
-import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, HOLDINGS_SIZES, INGEST_INTERVALS, LLM_PROVIDERS, defaultSettings, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
+import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, GLOBE_IMAGE_SIZES, HOLDINGS_SIZES, INGEST_INTERVALS, INSIGHT_CARDS, INSIGHT_CARD_IDS, LLM_PROVIDERS, defaultSettings, type InsightCardId, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
 import { hostLabel, humanizeModelName } from "@/lib/model-label";
 
 type SettingsSheetProps = {
   open: boolean;
   onClose: () => void;
+  onSaved?: (settings: WatchfloorSettings) => void;
 };
 
 function fmtDuration(ms: number | null | undefined): string {
@@ -44,7 +46,7 @@ function timeValue(hour: number, minute: number): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, onSaved }: SettingsSheetProps) {
   const [snapshot, setSnapshot] = useState<OpsSnapshot | null>(null);
   const [draft, setDraft] = useState<WatchfloorSettings>(DEFAULT_SETTINGS);
   const [saving, setSaving] = useState(false);
@@ -91,6 +93,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       if (!res.ok) throw new Error(`Save HTTP ${res.status}`);
       setDraft(next);
       setSavedAt(Date.now());
+      onSaved?.(next);
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -103,6 +106,16 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
     const next = { ...draft, ...partial };
     setDraft(next);
     void save(next);
+  }
+
+  function moveInsight(index: number, delta: number) {
+    const current = [...(draft.insightOrder ?? INSIGHT_CARD_IDS)];
+    const target = index + delta;
+    if (target < 0 || target >= current.length) return;
+    const item = current[index] as InsightCardId;
+    current.splice(index, 1);
+    current.splice(target, 0, item);
+    patch({ insightOrder: current });
   }
 
   if (!open) return null;
@@ -202,6 +215,21 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   ))}
                 </select>
               </label>
+              <label className="block">
+                <div className="md-label-sm mb-1">Globe photos</div>
+                <select
+                  className="md-field"
+                  disabled={saving}
+                  value={draft.globeImageMax ?? 100}
+                  onChange={(event) => patch({ globeImageMax: Number(event.target.value) })}
+                >
+                  {GLOBE_IMAGE_SIZES.map((option) => (
+                    <option key={option.count} value={option.count}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <StatGrid
                 items={[
                   { label: "Articles today", value: String(collection?.pulledToday ?? "—") },
@@ -216,6 +244,96 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   : "Periodic refresh is paused"}
                 {schedule?.lastIngestAt ? ` · last ${fmtWhen(schedule.lastIngestAt, tz)}` : ""}
               </p>
+            </div>
+          </section>
+
+          <section className="md-pane shrink-0">
+            <div className="md-pane-head">
+              <div className="md-title-lg flex items-center gap-2">
+                <Icon name="radar" size={18} className="text-[var(--md-secondary)]" />
+                Weather
+              </div>
+              <HelpButton topic="weather" />
+            </div>
+            <div className="space-y-3 px-3 pb-3">
+              <div>
+                <div className="md-label-sm mb-1">City</div>
+                <CitySearch
+                  city={draft.weatherCity || "London"}
+                  disabled={saving}
+                  onSelect={(hit) =>
+                    patch({
+                      weatherCity: hit.name,
+                      weatherLat: hit.lat,
+                      weatherLng: hit.lng,
+                      weatherTimezone: hit.timezone,
+                      weatherCountry: hit.countryCode,
+                    })
+                  }
+                />
+              </div>
+              <p className="md-label-sm leading-relaxed">
+                Forecast follows this city. UK Met Office warnings stay on the card, with notices that name the city listed first.
+              </p>
+            </div>
+          </section>
+
+          <section className="md-pane shrink-0">
+            <div className="md-pane-head">
+              <div className="md-title-lg flex items-center gap-2">
+                <Icon name="layers" size={18} className="text-[var(--md-secondary)]" />
+                Insights
+              </div>
+              <HelpButton topic="insights" />
+            </div>
+            <div className="space-y-2 px-3 pb-3">
+              <p className="md-label-sm leading-relaxed">
+                Order of cards on the desk pane. Top of the list is the top of the column.
+              </p>
+              {(draft.insightOrder ?? INSIGHT_CARD_IDS).map((id, index) => {
+                const label = INSIGHT_CARDS.find((card) => card.id === id)?.label ?? id;
+                const last = index === (draft.insightOrder?.length ?? INSIGHT_CARD_IDS.length) - 1;
+                return (
+                  <div
+                    key={id}
+                    className="flex items-center gap-2 rounded-xl px-2 py-1"
+                    style={{ background: "var(--md-container)" }}
+                  >
+                    <span className="md-mono w-5 text-center text-[11px] text-[var(--md-outline)]">
+                      {index + 1}
+                    </span>
+                    <span className="md-label min-w-0 flex-1 truncate">{label}</span>
+                    <button
+                      type="button"
+                      className="md-icon-btn"
+                      style={{ width: 28, height: 28 }}
+                      disabled={saving || index === 0}
+                      aria-label={`Move ${label} up`}
+                      onClick={() => moveInsight(index, -1)}
+                    >
+                      <Icon name="expand_less" size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      className="md-icon-btn"
+                      style={{ width: 28, height: 28 }}
+                      disabled={saving || last}
+                      aria-label={`Move ${label} down`}
+                      onClick={() => moveInsight(index, 1)}
+                    >
+                      <Icon name="expand_more" size={18} />
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                className="md-btn-text"
+                disabled={saving}
+                onClick={() => patch({ insightOrder: [...INSIGHT_CARD_IDS] })}
+              >
+                Reset order
+              </button>
             </div>
           </section>
 

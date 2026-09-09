@@ -234,10 +234,11 @@ That script no-ops when `origin/main` has not moved, and rebuilds when it has. T
 | Task | How |
 | --- | --- |
 | Open the floor | `http://<dashboard-host>:3050` |
-| Collection interval / brief slots / LLM host | Settings in the app bar (next to light/dark) |
+| Collection interval / brief slots / LLM host / weather city / globe photos / insight order | Settings in the app bar (next to light/dark) |
 | Manual collect | Collect button, or `POST /api/ingest` |
 | Rebuild today's brief | Rebuild on the brief pane, or `POST /api/brief` |
 | Why it matters (one article) | Open a report, spark on that block |
+| UK threat chip | Live from MI5; click opens the official threat-levels page. Desktop app bar only. |
 | Logs | `cd ~/watchfloor && docker compose logs -f app` |
 | Stop | `docker compose stop` |
 | Start | `docker compose start` |
@@ -290,7 +291,7 @@ Expected. `docker compose logs migrate` should say the database is in sync.
 `docker compose logs app`. The process runs as UID 1001; the volume must be writable by that user.
 
 **Empty dashboard.**
-Nothing has been collected yet — run the ingest/brief curls in part 2.6. If ingest errors per feed, check outbound HTTPS.
+Nothing has been collected yet — run the ingest/brief curls in part 2.6. If ingest errors per feed, check outbound HTTPS. Weather and the UK threat chip also need outbound HTTPS; if those feeds fail, the rest of the floor still loads.
 
 **"database is locked".**
 Two writers. Do not run `npm run ingest` against the volume while the container is up; use the HTTP APIs.

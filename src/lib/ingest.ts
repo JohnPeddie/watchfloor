@@ -1,7 +1,7 @@
 import Parser from "rss-parser";
 import { FEEDS, ingestCap } from "../../config/feeds";
 import { prisma } from "./db";
-import { geocodeText } from "./geocode";
+import { plotLocation } from "./geocode";
 import { classify } from "./classify";
 import { serialRef } from "./dtg";
 import { extractPage, mapLimit } from "./extract";
@@ -148,12 +148,18 @@ async function runIngestInner(options?: {
     const { url, title, rawExcerpt, categoryText, publishedAt } = staged_item;
 
     try {
-      const place = geocodeText(title, rawExcerpt, categoryText);
       const classification = classify({
         title,
         summary: `${rawExcerpt} ${categoryText}`,
         feedLanes: feed.lanes,
         publishedAt,
+      });
+      const place = plotLocation({
+        id: url,
+        title,
+        extra: [rawExcerpt, categoryText],
+        tags: classification.tags,
+        lanes: feed.lanes,
       });
 
       const existing = await prisma.article.findUnique({ where: { url } });

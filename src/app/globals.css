@@ -659,11 +659,12 @@ body {
   height: 34px;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid var(--md-primary);
+  border: 2px solid #7f92a8;
   box-shadow: var(--elev-3);
   cursor: pointer;
   background: var(--md-container);
   contain: layout style paint;
+  transition: transform 140ms ease;
 }
 .globe-marker:hover {
   transform: scale(1.35);

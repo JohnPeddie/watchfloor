@@ -3,10 +3,13 @@ import { pruneOldestArticles } from "./retention";
 import { todayInZone, zonedDate, zone } from "./clock";
 import {
   DEFAULT_SETTINGS,
+  GLOBE_IMAGE_MAX,
+  GLOBE_IMAGE_MIN,
   HOLDINGS_MAX,
   HOLDINGS_MIN,
   defaultSettings,
   llmProviderFromEnv,
+  parseInsightOrder,
   type LlmProviderId,
   type WatchfloorSettings,
 } from "./settings-types";
@@ -14,13 +17,19 @@ import {
 export {
   BRIEF_FREQUENCIES,
   DEFAULT_SETTINGS,
+  GLOBE_IMAGE_MAX,
+  GLOBE_IMAGE_MIN,
+  GLOBE_IMAGE_SIZES,
   HOLDINGS_MAX,
   HOLDINGS_MIN,
   HOLDINGS_SIZES,
   INGEST_INTERVALS,
+  INSIGHT_CARDS,
   LLM_PROVIDERS,
   defaultSettings,
   llmProviderFromEnv,
+  parseInsightOrder,
+  type InsightCardId,
   type LlmProviderId,
   type WatchfloorSettings,
 } from "./settings-types";
@@ -44,8 +53,21 @@ export function parseSettings(raw: unknown): WatchfloorSettings {
   const minute = Number(o.briefMinute);
   const times = Number(o.briefTimesPerDay);
   const holdings = Number(o.holdingsMax);
+  const globeImages = Number(o.globeImageMax);
   const host = typeof o.llmHost === "string" ? o.llmHost.trim().slice(0, 200) : "";
   const model = typeof o.llmModel === "string" ? o.llmModel.trim().slice(0, 120) : "";
+  const weatherCity =
+    typeof o.weatherCity === "string" && o.weatherCity.trim()
+      ? o.weatherCity.trim().slice(0, 80)
+      : DEFAULT_SETTINGS.weatherCity;
+  const weatherLat = Number(o.weatherLat);
+  const weatherLng = Number(o.weatherLng);
+  const weatherTimezone =
+    typeof o.weatherTimezone === "string" && o.weatherTimezone.trim()
+      ? o.weatherTimezone.trim().slice(0, 80)
+      : DEFAULT_SETTINGS.weatherTimezone;
+  const weatherCountry =
+    typeof o.weatherCountry === "string" ? o.weatherCountry.trim().slice(0, 8).toUpperCase() : "";
   return {
     ingestEnabled: o.ingestEnabled !== false,
     ingestIntervalMinutes:
@@ -63,6 +85,22 @@ export function parseSettings(raw: unknown): WatchfloorSettings {
       Number.isFinite(holdings)
         ? Math.min(HOLDINGS_MAX, Math.max(HOLDINGS_MIN, Math.round(holdings)))
         : DEFAULT_SETTINGS.holdingsMax,
+    globeImageMax:
+      Number.isFinite(globeImages)
+        ? Math.min(GLOBE_IMAGE_MAX, Math.max(GLOBE_IMAGE_MIN, Math.round(globeImages)))
+        : DEFAULT_SETTINGS.globeImageMax,
+    weatherCity,
+    weatherLat:
+      Number.isFinite(weatherLat) && weatherLat >= -90 && weatherLat <= 90
+        ? weatherLat
+        : DEFAULT_SETTINGS.weatherLat,
+    weatherLng:
+      Number.isFinite(weatherLng) && weatherLng >= -180 && weatherLng <= 180
+        ? weatherLng
+        : DEFAULT_SETTINGS.weatherLng,
+    weatherTimezone,
+    weatherCountry: weatherCountry || DEFAULT_SETTINGS.weatherCountry,
+    insightOrder: parseInsightOrder(o.insightOrder),
   };
 }
 

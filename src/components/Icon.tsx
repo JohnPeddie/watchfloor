@@ -50,6 +50,8 @@ const paths: Record<string, string> = {
     "M18.9 6c-.2-1.1-1.2-2-2.4-2H7.5C6.3 4 5.3 4.9 5.1 6L3 17h3l.8-4h10.4l.8 4h3L18.9 6zM7.6 11l.8-4h7.2l.8 4H7.6z",
   spark:
     "M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9.5 4 7.5 9.5 2 11.5l5.5 2L9.5 19l2-5.5L17 11.5 11.5 9.5z",
+  expand_less: "M12 8 6 14l1.4 1.4L12 10.8l4.6 4.6L18 14 12 8z",
+  expand_more: "M16.6 8.6 12 13.2 7.4 8.6 6 10l6 6 6-6-1.4-1.4z",
 };
 
 export function Icon({ name, size = 20, className }: IconProps & { name: keyof typeof paths | string }) {

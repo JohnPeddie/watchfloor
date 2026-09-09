@@ -23,7 +23,17 @@ export const HELP: Record<string, HelpTopic> = {
   globe: {
     title: "Geospatial plot",
     body:
-      "Where the reporting is happening. Day and night track real time. Red discs are active warzones (major ongoing armed conflicts). Amber discs are high-severity tropical cyclones — hurricanes and major storms — with violet for a major hurricane. Selecting a brief item or article plants a marker at the subject and, for brief items, draws a spoke from every source toward it. On a PC the plot sits above the stream. On a tablet it sits beside the list; on a phone, use the Globe tab.",
+      "Where the reporting is happening. Day and night track real time. Red discs are active warzones (major ongoing armed conflicts). Amber discs are high-severity tropical cyclones — hurricanes and major storms — with violet for a major hurricane. How many photos sit on the globe is set in Settings; the rest are small yellow dots. Selecting an article loads its photo as the globe zooms in. Generic US reports are spread across the country rather than stacked on Washington. Selecting a brief item draws a spoke from every source toward the subject. On a PC the plot sits above the stream. On a tablet it sits beside the list; on a phone, use the Globe tab.",
+  },
+  weather: {
+    title: "Weather",
+    body:
+      "Current conditions and a five-day outlook for the city you pick, from Open-Meteo. Change city with the search button next to the name, or under Settings. Active Met Office warnings for the UK sit underneath; warnings that name your city or its region are listed first, then by severity. Empty means none are in force, not that the feed failed. Each warning links to the Met Office page; this card is a desk check, not a substitute for those notices.",
+  },
+  insights: {
+    title: "Insights",
+    body:
+      "The cards on the desk pane — weather, energy, markets, sectors, precedence, classification, collection and summarisation. Move a card up or down in Settings to change the order. The top of that list is the top of the column on a phone, a tablet, and the PC side pane. Reset order restores the original stack.",
   },
   energy: {
     title: "Energy",
@@ -63,6 +73,6 @@ export const HELP: Record<string, HelpTopic> = {
   settings: {
     title: "Settings",
     body:
-      "Periodic news refresh pulls the RSS feeds on the interval you set. Holdings size is how many articles the stream keeps; oldest drop first if you lower it. The briefing starts at the time you choose — 06:00 by default — and repeats that many times per day, evenly spaced (four times means every six hours from the start). It catches up if the server was off at a slot. The Local LLM section chooses Ollama or LM Studio and the host IP; leave the host blank to keep the environment default. If the model is down, briefs fall back to rules. Open Settings from the cog in the app bar, next to light and dark. Both schedules only run while Watchfloor itself is running. Chrome only drops the address bar permanently (Install app) when the page is opened over HTTPS. Add to Home screen on plain HTTP is a bookmark.",
+      "Periodic news refresh pulls the RSS feeds on the interval you set. Holdings size is how many articles the stream keeps; oldest drop first if you lower it. Globe photos is how many picture markers the globe draws — default 100 — with the rest as yellow dots. Weather city is the place the weather card forecasts for; search a name to change it. Insights order is the stack of desk cards. The briefing starts at the time you choose — 06:00 by default — and repeats that many times per day, evenly spaced (four times means every six hours from the start). It catches up if the server was off at a slot. The Local LLM section chooses Ollama or LM Studio and the host IP; leave the host blank to keep the environment default. If the model is down, briefs fall back to rules. Open Settings from the cog in the app bar, next to light and dark. Both schedules only run while Watchfloor itself is running. Chrome only drops the address bar permanently (Install app) when the page is opened over HTTPS. Add to Home screen on plain HTTP is a bookmark.",
   },
 };

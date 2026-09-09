@@ -19,7 +19,59 @@ export type WatchfloorSettings = {
   llmModel: string;
   /** Max articles kept in the reporting stream. Oldest drop first. */
   holdingsMax: number;
+  /** How many photo markers the globe draws. The rest are small yellow dots. */
+  globeImageMax: number;
+  /** Weather card city. Forecast follows these coordinates. */
+  weatherCity: string;
+  weatherLat: number;
+  weatherLng: number;
+  weatherTimezone: string;
+  weatherCountry: string;
+  /** Order of cards on the desk / insights pane. */
+  insightOrder: InsightCardId[];
 };
+
+export const INSIGHT_CARD_IDS = [
+  "weather",
+  "energy",
+  "markets",
+  "sectors",
+  "precedence",
+  "classification",
+  "collection",
+  "summarisation",
+] as const;
+
+export type InsightCardId = (typeof INSIGHT_CARD_IDS)[number];
+
+export const INSIGHT_CARDS: { id: InsightCardId; label: string }[] = [
+  { id: "weather", label: "Weather" },
+  { id: "energy", label: "Energy" },
+  { id: "markets", label: "Markets" },
+  { id: "sectors", label: "Sectors" },
+  { id: "precedence", label: "Precedence" },
+  { id: "classification", label: "Classification" },
+  { id: "collection", label: "Collection" },
+  { id: "summarisation", label: "Summarisation" },
+];
+
+export function parseInsightOrder(raw: unknown): InsightCardId[] {
+  const allowed = new Set<string>(INSIGHT_CARD_IDS);
+  const seen = new Set<InsightCardId>();
+  const order: InsightCardId[] = [];
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item !== "string" || !allowed.has(item) || seen.has(item as InsightCardId)) continue;
+      const id = item as InsightCardId;
+      seen.add(id);
+      order.push(id);
+    }
+  }
+  for (const id of INSIGHT_CARD_IDS) {
+    if (!seen.has(id)) order.push(id);
+  }
+  return order;
+}
 
 export const LLM_PROVIDERS: { id: LlmProviderId; label: string }[] = [
   { id: "rules", label: "Rules engine (no LLM)" },
@@ -45,6 +97,13 @@ export const DEFAULT_SETTINGS: WatchfloorSettings = {
   llmHost: "",
   llmModel: "",
   holdingsMax: 300,
+  globeImageMax: 100,
+  weatherCity: "London",
+  weatherLat: 51.5074,
+  weatherLng: -0.1278,
+  weatherTimezone: "Europe/London",
+  weatherCountry: "GB",
+  insightOrder: [...INSIGHT_CARD_IDS],
 };
 
 export function defaultSettings(): WatchfloorSettings {
@@ -74,6 +133,18 @@ export const HOLDINGS_SIZES: { count: number; label: string }[] = [
 
 export const HOLDINGS_MIN = 150;
 export const HOLDINGS_MAX = 1000;
+
+export const GLOBE_IMAGE_SIZES: { count: number; label: string }[] = [
+  { count: 0, label: "None (dots only)" },
+  { count: 25, label: "25 photos" },
+  { count: 50, label: "50 photos" },
+  { count: 100, label: "100 photos" },
+  { count: 150, label: "150 photos" },
+  { count: 200, label: "200 photos" },
+];
+
+export const GLOBE_IMAGE_MIN = 0;
+export const GLOBE_IMAGE_MAX = 200;
 
 export const INGEST_INTERVALS: { minutes: number; label: string }[] = [
   { minutes: 15, label: "Every 15 minutes" },

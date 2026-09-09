@@ -6,6 +6,7 @@ import { dtg } from "@/lib/dtg";
 import { useTheme } from "@/lib/use-theme";
 import { usePwa } from "@/lib/use-pwa";
 import { FLOOR_VIEWS, type FloorView } from "@/lib/floor";
+import { THREAT_SOURCE_URL, type ThreatPayload } from "@/lib/threat-types";
 
 type AppBarProps = {
   query: string;
@@ -23,6 +24,7 @@ type AppBarProps = {
   /** True when the configured LLM host cannot be reached. */
   llmOffline?: boolean;
   onOpenSettings?: () => void;
+  threat?: ThreatPayload | null;
 };
 
 export function AppBar({
@@ -39,6 +41,7 @@ export function AppBar({
   dense = false,
   llmOffline = false,
   onOpenSettings,
+  threat = null,
 }: AppBarProps) {
   const [now, setNow] = useState<Date | null>(null);
   const { theme, toggleTheme } = useTheme();
@@ -129,15 +132,7 @@ export function AppBar({
           <div className="md-mono md-label-sm">{now ? dtg(now) : "—"}</div>
         </div>
 
-        <div
-          className="hidden items-center gap-2 rounded-full px-3 py-1.5 lg:flex"
-          style={{ background: "var(--md-primary-container)" }}
-        >
-          <Icon name="shield" size={16} className="text-[var(--md-on-primary-container)]" />
-          <span className="text-[11.5px] font-semibold text-[var(--md-on-primary-container)]">
-            UK threat: Substantial
-          </span>
-        </div>
+        <ThreatChip threat={threat} />
 
         {llmOffline && (
           <div
@@ -205,6 +200,45 @@ export function AppBar({
         </div>
       )}
     </header>
+  );
+}
+
+function threatStyle(level: ThreatPayload["level"]): { background: string; color: string } {
+  if (level === "critical" || level === "severe") {
+    return { background: "var(--md-error-container)", color: "var(--md-error)" };
+  }
+  if (level === "substantial") {
+    return { background: "var(--md-primary-container)", color: "var(--md-on-primary-container)" };
+  }
+  if (level === "moderate") {
+    return { background: "var(--md-secondary-container)", color: "var(--md-on-secondary-container)" };
+  }
+  return { background: "var(--md-container-high)", color: "var(--md-on-surface-variant)" };
+}
+
+function ThreatChip({ threat }: { threat: ThreatPayload | null }) {
+  const level = threat?.level ?? null;
+  const label = level ? level.toUpperCase() : "…";
+  const tone = threatStyle(level);
+  const titleParts = [
+    level && threat?.meaning ? `${label}: ${threat.meaning}.` : "UK national terrorism threat level from MI5 / JTAC.",
+    threat?.northernIreland ? `Northern Ireland-related terrorism: ${threat.northernIreland.toUpperCase()}.` : null,
+    "Opens the MI5 terrorism threat levels page.",
+  ].filter(Boolean);
+
+  return (
+    <a
+      href={THREAT_SOURCE_URL}
+      target="_blank"
+      rel="noreferrer"
+      className="hidden items-center gap-2 rounded-full px-3 py-1.5 lg:flex"
+      style={{ background: tone.background, color: tone.color }}
+      title={titleParts.join(" ")}
+      aria-label={`UK threat level ${label}`}
+    >
+      <Icon name="shield" size={16} />
+      <span className="text-[11.5px] font-semibold">UK threat: {label}</span>
+    </a>
   );
 }
 

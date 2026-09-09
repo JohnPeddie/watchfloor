@@ -19,6 +19,8 @@ type GlobeViewProps = {
   hazards?: HazardsPayload;
   /** Story-to-source connectors, drawn in place of the ambient arcs. */
   links: GlobeLink[];
+  /** Photo markers to draw. Overflow contacts are small yellow dots. */
+  maxImages?: number;
 };
 
 type ArcDatum = {
@@ -41,17 +43,32 @@ type CountryFeature = {
 };
 
 const UK_HOME = { lat: 54.5, lng: -3.0 };
-
-/** HTML photo markers are CSS2D — they are the main source of flick stutter. */
-const MAX_HTML_MARKERS = 12;
-/** GPU points are cheap; still cap so pointer picking stays light. */
-const MAX_POINTS = 96;
+const YELLOW_DOT = "#ffe082";
 const PRECEDENCE_RANK: Record<Precedence, number> = {
   FLASH: 0,
   IMMEDIATE: 1,
   PRIORITY: 2,
   ROUTINE: 3,
 };
+
+function imageRank(pin: GlobePin, selectedId: string | null): number {
+  if (pin.focus || pin.id === selectedId) return -2;
+  if (pin.kind === "story") return PRECEDENCE_RANK[pin.precedence];
+  return 5 + PRECEDENCE_RANK[pin.precedence];
+}
+
+function takeImagePins(pins: GlobePin[], selectedId: string | null, limit: number): GlobePin[] {
+  const withImage = pins.filter((p) => Boolean(p.imageUrl));
+  const selected = selectedId ? withImage.find((p) => p.id === selectedId) : undefined;
+  if (limit <= 0) return selected ? [selected] : [];
+  if (withImage.length <= limit) return withImage;
+  const ranked = [...withImage].sort((a, b) => imageRank(a, selectedId) - imageRank(b, selectedId));
+  const picked = ranked.slice(0, limit);
+  if (selected && !picked.some((p) => p.id === selected.id)) {
+    picked[picked.length - 1] = selected;
+  }
+  return picked;
+}
 
 const VERTEX_SHADER = `
   varying vec3 vNormal;
@@ -112,26 +129,6 @@ const FRAGMENT_SHADER = `
   }
 `;
 
-function pinRank(pin: GlobePin, selectedId: string | null): number {
-  if (pin.focus || pin.id === selectedId) return -2;
-  if (pin.kind === "story") return PRECEDENCE_RANK[pin.precedence];
-  if (pin.kind === "source") return 4;
-  return 5 + PRECEDENCE_RANK[pin.precedence];
-}
-
-function takePins(pins: GlobePin[], selectedId: string | null, limit: number): GlobePin[] {
-  if (pins.length <= limit) return pins;
-  const ranked = [...pins].sort((a, b) => pinRank(a, selectedId) - pinRank(b, selectedId));
-  const picked = ranked.slice(0, limit);
-  if (selectedId && !picked.some((p) => p.id === selectedId)) {
-    const extra = pins.find((p) => p.id === selectedId);
-    if (extra) {
-      picked[picked.length - 1] = extra;
-    }
-  }
-  return picked;
-}
-
 export const GlobeView = memo(function GlobeView({
   pins,
   focus,
@@ -142,17 +139,15 @@ export const GlobeView = memo(function GlobeView({
   showHazards = true,
   hazards,
   links,
+  maxImages = 100,
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const onSelectPinRef = useRef(onSelectPin);
   const focusRef = useRef(focus);
-  const busyRef = useRef(false);
-  const detachControls = useRef<(() => void) | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [sunLabel, setSunLabel] = useState<string>("");
-  const [interacting, setInteracting] = useState(false);
 
   onSelectPinRef.current = onSelectPin;
   focusRef.current = focus;
@@ -222,27 +217,26 @@ export const GlobeView = memo(function GlobeView({
     [showBoundaries, countries, hazardMarks],
   );
 
-  const plottedPins = useMemo(
-    () => takePins(pins, selectedId, MAX_POINTS),
-    [pins, selectedId],
+  const imagePins = useMemo(
+    () => (links.length > 0 ? [] : takeImagePins(pins, selectedId, showImagery ? maxImages : 0)),
+    [pins, showImagery, links.length, selectedId, maxImages],
   );
 
-  const imagePins = useMemo(() => {
-    if (interacting || links.length > 0 || !showImagery) return [];
-    return plottedPins.filter((p) => Boolean(p.imageUrl)).slice(0, MAX_HTML_MARKERS);
-  }, [plottedPins, showImagery, links.length, interacting]);
+  const imageIds = useMemo(() => new Set(imagePins.map((p) => p.id)), [imagePins]);
 
   const points = useMemo(() => {
-    const articlePoints = plottedPins.map((p) => ({
+    const articlePoints = pins
+      .filter((p) => !imageIds.has(p.id))
+      .map((p) => ({
         ...p,
-        radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.4 : 0.22,
+        radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.28 : 0.14,
         color: p.focus
           ? "#ffb77c"
           : p.kind === "source"
             ? "#7fd6c9"
             : p.id === selectedId
               ? "#ffb77c"
-              : (PRECEDENCE_STYLES[p.precedence]?.fg ?? "#8a949b"),
+              : YELLOW_DOT,
       }));
     const overlayPoints = hazardMarks.map((mark) => ({
       ...mark,
@@ -250,11 +244,11 @@ export const GlobeView = memo(function GlobeView({
       color: stormColor(mark),
     }));
     return [...overlayPoints, ...articlePoints];
-  }, [plottedPins, selectedId, hazardMarks]);
+  }, [pins, selectedId, imageIds, hazardMarks]);
 
   /**
-   * A selected story's source web replaces the ambient home arcs. Dashes stay
-   * static so the fragment shader is not animating every frame.
+   * A selected story's source web replaces the ambient home arcs. Dashes
+   * travel from each source toward the hub — reporting arriving at the event.
    */
   const arcs = useMemo<ArcDatum[]>(() => {
     if (links.length > 0) {
@@ -267,14 +261,13 @@ export const GlobeView = memo(function GlobeView({
         stroke: 0.55,
         dashLength: 0.7,
         dashGap: 0.18,
-        dashAnimateTime: 0,
+        dashAnimateTime: 2800,
         altitudeScale: 0.38,
       }));
     }
 
-    return plottedPins
-      .filter((p) => p.kind === "story" && (p.precedence === "FLASH" || p.precedence === "IMMEDIATE"))
-      .slice(0, 8)
+    return pins
+      .filter((p) => p.kind === "story")
       .map((p) => ({
         startLat: UK_HOME.lat,
         startLng: UK_HOME.lng,
@@ -287,18 +280,24 @@ export const GlobeView = memo(function GlobeView({
         stroke: 0.3,
         dashLength: 0.45,
         dashGap: 0.22,
-        dashAnimateTime: 0,
+        dashAnimateTime: 5000,
         altitudeScale: 0.4,
       }));
-  }, [plottedPins, links]);
+  }, [pins, links]);
 
-  const rings = useMemo(() => {
-    if (interacting) return [];
-    const selected = plottedPins.filter((p) => p.focus || p.id === selectedId);
-    return selected.map((p) => ({ lat: p.lat, lng: p.lng, color: "255,183,124" }));
-  }, [plottedPins, selectedId, interacting]);
-
-  const labels = interacting ? [] : hazardMarks;
+  const rings = useMemo(
+    () => [
+      ...pins
+        .filter((p) => p.focus || p.precedence === "FLASH" || p.id === selectedId)
+        .map((p) => ({ lat: p.lat, lng: p.lng, color: "255,183,124" })),
+      ...hazardMarks.map((mark) => ({
+        lat: mark.lat,
+        lng: mark.lng,
+        color: mark.kind === "warzone" ? "255,70,60" : mark.severity === "extreme" ? "196,120,255" : "255,176,64",
+      })),
+    ],
+    [pins, selectedId, hazardMarks],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -337,85 +336,56 @@ export const GlobeView = memo(function GlobeView({
     g.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: focus.altitude ?? 1.5 }, 1300);
   }, [focus]);
 
-  useEffect(() => () => detachControls.current?.(), []);
-
   const attachGlobe = useCallback((globe: GlobeMethods) => {
-    detachControls.current?.();
     globeRef.current = globe;
-
     const renderer = globe.renderer();
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     renderer.setPixelRatio(Math.min(dpr, 1.25));
-
     const controls = globe.controls();
     controls.enableDamping = true;
-    controls.dampingFactor = 0.16;
+    controls.dampingFactor = 0.08;
     controls.autoRotate = !focusRef.current;
     controls.autoRotateSpeed = 0.25;
-
-    let dragging = false;
-    let settle = 0;
-    const markBusy = () => {
-      if (busyRef.current) return;
-      busyRef.current = true;
-      setInteracting(true);
-    };
-    const markIdleSoon = () => {
-      window.clearTimeout(settle);
-      settle = window.setTimeout(() => {
-        busyRef.current = false;
-        setInteracting(false);
-      }, 220);
-    };
-    const onStart = () => {
-      dragging = true;
-      window.clearTimeout(settle);
-      markBusy();
-    };
-    const onEnd = () => {
-      dragging = false;
-      markIdleSoon();
-    };
-    const onChange = () => {
-      if (!dragging && busyRef.current) markIdleSoon();
-    };
-
-    controls.addEventListener("start", onStart);
-    controls.addEventListener("end", onEnd);
-    controls.addEventListener("change", onChange);
-
-    detachControls.current = () => {
-      window.clearTimeout(settle);
-      controls.removeEventListener("start", onStart);
-      controls.removeEventListener("end", onEnd);
-      controls.removeEventListener("change", onChange);
-    };
   }, []);
 
-  const htmlElement = useCallback((d: object) => {
-    const pin = d as unknown as GlobePin;
-    const el = document.createElement("div");
-    el.className = "globe-marker";
-    el.style.borderColor = PRECEDENCE_STYLES[pin.precedence]?.fg ?? "#8a949b";
-    el.title = `${pin.placeLabel ?? ""} — ${pin.label}`;
-    const img = document.createElement("img");
-    img.src = pin.imageUrl ?? "";
-    img.alt = "";
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.draggable = false;
-    el.appendChild(img);
-    el.onclick = (event) => {
-      event.stopPropagation();
-      onSelectPinRef.current(pin);
-    };
-    return el;
+  const zoomToPin = useCallback((pin: GlobePin) => {
+    onSelectPinRef.current(pin);
+    globeRef.current?.pointOfView({ lat: pin.lat, lng: pin.lng, altitude: 0.7 }, 1100);
   }, []);
 
-  const onPointClick = useCallback((d: object) => {
-    if (isHazard(d)) return;
-    onSelectPinRef.current(d as unknown as GlobePin);
-  }, []);
+  const htmlElement = useCallback(
+    (d: object) => {
+      const pin = d as unknown as GlobePin;
+      const el = document.createElement("div");
+      el.className = "globe-marker";
+      const urgency = PRECEDENCE_STYLES[pin.precedence]?.fg ?? "#7f92a8";
+      const selected = pin.id === selectedId;
+      el.style.border = `${selected ? 3 : 2}px solid ${urgency}`;
+      el.style.boxShadow = selected ? `0 0 0 2px ${urgency}` : "var(--elev-3)";
+      el.title = `${pin.placeLabel ?? ""} · ${pin.precedence} — ${pin.label}`;
+      const img = document.createElement("img");
+      img.src = pin.imageUrl ?? "";
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.draggable = false;
+      el.appendChild(img);
+      el.onclick = (event) => {
+        event.stopPropagation();
+        zoomToPin(pin);
+      };
+      return el;
+    },
+    [selectedId, zoomToPin],
+  );
+
+  const onPointClick = useCallback(
+    (d: object) => {
+      if (isHazard(d)) return;
+      zoomToPin(d as unknown as GlobePin);
+    },
+    [zoomToPin],
+  );
 
   const onZoom = useCallback(
     ({ lng, lat }: { lng: number; lat: number }) => {
@@ -473,7 +443,7 @@ export const GlobeView = memo(function GlobeView({
           globeMaterial={material}
           showGraticules={false}
           atmosphereColor="#8fbfd6"
-          atmosphereAltitude={0.14}
+          atmosphereAltitude={0.17}
           onGlobeReady={() => {
             const g = globeRef.current;
             if (g) attachGlobe(g);
@@ -496,7 +466,7 @@ export const GlobeView = memo(function GlobeView({
           pointLabel={tooltip}
           pointsTransitionDuration={0}
           onPointClick={onPointClick}
-          labelsData={labels}
+          labelsData={hazardMarks}
           labelLat="lat"
           labelLng="lng"
           labelText="label"

@@ -14,9 +14,12 @@ import { HelpButton } from "@/components/HelpButton";
 import { Icon } from "@/components/Icon";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { useFloorKind, useIsShortInner } from "@/lib/use-media";
-import { buildSourceWeb } from "@/lib/source-web";
+import { plotLocation } from "@/lib/geocode";
+import { DEFAULT_SETTINGS, type InsightCardId, type WatchfloorSettings } from "@/lib/settings-types";
 import type { FloorView } from "@/lib/floor";
 import type { MarketQuote } from "@/lib/markets";
+import type { ThreatPayload } from "@/lib/threat-types";
+import type { WeatherPayload } from "@/lib/weather-types";
 import type { HazardsPayload } from "@/lib/hazard-geometry";
 import type {
   ArticleDTO,
@@ -46,6 +49,8 @@ export function WatchfloorDashboard() {
   const [articles, setArticles] = useState<ArticleDTO[]>([]);
   const [allArticles, setAllArticles] = useState<ArticleDTO[]>([]);
   const [markets, setMarkets] = useState<MarketQuote[]>([]);
+  const [weather, setWeather] = useState<WeatherPayload | null>(null);
+  const [threat, setThreat] = useState<ThreatPayload | null>(null);
   const [hazards, setHazards] = useState<HazardsPayload>({
     warzones: [],
     storms: [],
@@ -70,6 +75,8 @@ export function WatchfloorDashboard() {
   const [view, setView] = useState<FloorView>("brief");
   const [summarizer, setSummarizer] = useState<SummarizerStatus | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [globeImageMax, setGlobeImageMax] = useState(DEFAULT_SETTINGS.globeImageMax);
+  const [insightOrder, setInsightOrder] = useState<InsightCardId[]>(DEFAULT_SETTINGS.insightOrder);
   const floor = useFloorKind();
   const shortInner = useIsShortInner();
   const isCompact = floor === "cover";
@@ -94,7 +101,7 @@ export function WatchfloorDashboard() {
   }, [activeTag, query]);
 
   const loadBase = useCallback(async () => {
-    const [briefRes, allRes, marketsRes, summarizerRes] = await Promise.all([
+    const [briefRes, allRes, marketsRes, summarizerRes, settingsRes] = await Promise.all([
       fetch("/api/brief").then((r) => r.json()),
       fetch("/api/articles").then((r) => r.json()),
       fetch("/api/markets").then((r) => r.json()),
@@ -102,11 +109,32 @@ export function WatchfloorDashboard() {
       fetch("/api/summarizer")
         .then((r) => r.json())
         .catch(() => null),
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .catch(() => null),
     ]);
     setBrief(briefRes.brief ?? null);
     setAllArticles(allRes.articles ?? []);
     setMarkets(marketsRes.markets ?? []);
     setSummarizer(summarizerRes ?? null);
+    if (typeof settingsRes?.settings?.globeImageMax === "number") {
+      setGlobeImageMax(settingsRes.settings.globeImageMax);
+    }
+    if (Array.isArray(settingsRes?.settings?.insightOrder)) {
+      setInsightOrder(settingsRes.settings.insightOrder);
+    }
+    void fetch("/api/threat")
+      .then((r) => r.json())
+      .then((threatRes) => {
+        if (threatRes?.level || threatRes?.source) setThreat(threatRes as ThreatPayload);
+      })
+      .catch(() => undefined);
+    void fetch("/api/weather")
+      .then((r) => r.json())
+      .then((weatherRes) => {
+        if (weatherRes?.location) setWeather(weatherRes as WeatherPayload);
+      })
+      .catch(() => undefined);
     void fetch("/api/hazards")
       .then((r) => r.json())
       .then((hazardsRes) => {
@@ -172,30 +200,55 @@ export function WatchfloorDashboard() {
 
     const storyPins: GlobePin[] =
       brief?.stories
-        .filter((s) => s.lat != null && s.lng != null)
-        .map((s) => ({
-          id: `story:${s.id}`,
-          kind: "story" as const,
-          label: s.headline,
-          lat: s.lat as number,
-          lng: s.lng as number,
-          placeLabel: s.placeLabel,
-          precedence: s.precedence,
-          imageUrl: s.imageUrl,
-        })) ?? [];
+        .map((s) => {
+          const place = plotLocation({
+            id: s.id,
+            title: s.headline,
+            extra: [s.placeLabel, s.body],
+            tags: s.tags,
+            lat: s.lat,
+            lng: s.lng,
+            placeLabel: s.placeLabel,
+          });
+          if (!place) return null;
+          return {
+            id: `story:${s.id}`,
+            kind: "story" as const,
+            label: s.headline,
+            lat: place.lat,
+            lng: place.lng,
+            placeLabel: place.label,
+            precedence: s.precedence,
+            imageUrl: s.imageUrl,
+          };
+        })
+        .filter((pin): pin is GlobePin => pin != null) ?? [];
 
     const articlePins: GlobePin[] = articles
-      .filter((a) => a.lat != null && a.lng != null)
-      .map((a) => ({
-        id: `article:${a.id}`,
-        kind: "article" as const,
-        label: a.title,
-        lat: a.lat as number,
-        lng: a.lng as number,
-        placeLabel: a.placeLabel,
-        precedence: a.precedence,
-        imageUrl: a.imageUrl,
-      }));
+      .map((a) => {
+        const place = plotLocation({
+          id: a.id,
+          title: a.title,
+          extra: [a.summary, a.placeLabel],
+          tags: a.tags,
+          lanes: a.lanes,
+          lat: a.lat,
+          lng: a.lng,
+          placeLabel: a.placeLabel,
+        });
+        if (!place) return null;
+        return {
+          id: `article:${a.id}`,
+          kind: "article" as const,
+          label: a.title,
+          lat: place.lat,
+          lng: place.lng,
+          placeLabel: place.label,
+          precedence: a.precedence,
+          imageUrl: a.imageUrl,
+        };
+      })
+      .filter((pin): pin is GlobePin => pin != null);
 
     if (isInner && view === "articles") return articlePins;
     if (isInner && view === "brief") return storyPins;
@@ -270,7 +323,17 @@ export function WatchfloorDashboard() {
       setSelectedStory(null);
       setView("articles");
       setPane("articles");
-      flyTo(article.lat, article.lng);
+      const place = plotLocation({
+        id: article.id,
+        title: article.title,
+        extra: [article.summary, article.placeLabel],
+        tags: article.tags,
+        lanes: article.lanes,
+        lat: article.lat,
+        lng: article.lng,
+        placeLabel: article.placeLabel,
+      });
+      flyTo(place?.lat ?? article.lat, place?.lng ?? article.lng, 0.7);
     },
     [flyTo],
   );
@@ -295,16 +358,27 @@ export function WatchfloorDashboard() {
     (pin: GlobePin) => {
       if (pin.kind === "story") {
         const story = brief?.stories.find((s) => s.id === pin.id.replace("story:", ""));
-        if (story) onSelectStory(story);
-        return;
+        if (story) {
+          setSelectedStory(story);
+          setSelectedArticle(null);
+          setView("brief");
+          setPane("brief");
+        }
+      } else {
+        const articleId =
+          pin.articleId ?? pin.id.replace(/^article:/, "").replace(/^source:[^:]+:/, "");
+        const article =
+          articles.find((a) => a.id === articleId) ?? allArticles.find((a) => a.id === articleId);
+        if (article) {
+          setSelectedArticle(article);
+          setSelectedStory(null);
+          setView("articles");
+          setPane("articles");
+        }
       }
-      const articleId =
-        pin.articleId ?? pin.id.replace(/^article:/, "").replace(/^source:[^:]+:/, "");
-      const article =
-        articles.find((a) => a.id === articleId) ?? allArticles.find((a) => a.id === articleId);
-      if (article) onSelectArticle(article);
+      flyTo(pin.lat, pin.lng, 0.7);
     },
-    [brief, articles, allArticles, onSelectStory, onSelectArticle],
+    [brief, articles, allArticles, flyTo],
   );
 
   async function onIngest() {
@@ -431,6 +505,7 @@ export function WatchfloorDashboard() {
         showBoundaries={showBoundaries}
         showHazards={showHazards}
         hazards={hazards}
+        maxImages={globeImageMax}
       />
     </section>
   );
@@ -450,12 +525,15 @@ export function WatchfloorDashboard() {
   const insightPane = (
     <InsightPane
       markets={markets}
+      weather={weather}
+      onWeatherChange={setWeather}
       tagCounts={tagCounts}
       activeTag={activeTag}
       onSelectTag={setActiveTag}
       precedenceCounts={precedenceCounts}
       feedStatus={feedStatus}
       summarizer={summarizer}
+      insightOrder={insightOrder}
       columns={isInner && view === "markets" ? 2 : 1}
     />
   );
@@ -564,6 +642,7 @@ export function WatchfloorDashboard() {
           showViews={isInner}
           dense={denseChrome}
           llmOffline={llmOffline}
+          threat={threat}
           onOpenSettings={() => setSettingsOpen(true)}
         />
 
@@ -616,7 +695,20 @@ export function WatchfloorDashboard() {
         />
       )}
 
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={(next: WatchfloorSettings) => {
+          setGlobeImageMax(next.globeImageMax);
+          setInsightOrder(next.insightOrder);
+          void fetch("/api/weather")
+            .then((r) => r.json())
+            .then((weatherRes) => {
+              if (weatherRes?.location) setWeather(weatherRes as WeatherPayload);
+            })
+            .catch(() => undefined);
+        }}
+      />
     </div>
   );
 }
