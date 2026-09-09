@@ -6,6 +6,7 @@ import { feedByName } from "../config/feeds";
 import { extractPage, mapLimit } from "../src/lib/extract";
 import { deriveImplication, summariseExtractive } from "../src/lib/analysis";
 import { geocodeText } from "../src/lib/geocode";
+import { isLlmImplicationSource } from "../src/lib/serializers";
 
 /**
  * Backfills full text, imagery and derived assessments for stored articles.
@@ -42,9 +43,14 @@ async function main() {
 
     const place = geocodeText(article.title, article.rawExcerpt ?? article.summary);
 
+    const keepLlmImplication =
+      isLlmImplicationSource(article.implicationSource) && Boolean(article.implication);
     const analysisFields = {
       analysis: summariseExtractive(bodyText, article.rawExcerpt ?? article.summary),
-      implication: deriveImplication(classification.tags, place?.label ?? null),
+      implication: keepLlmImplication
+        ? article.implication
+        : deriveImplication(classification.tags, place?.label ?? null),
+      implicationSource: keepLlmImplication ? article.implicationSource : "rules",
       analysisSource: "rules",
       analysedAt: new Date(),
     };

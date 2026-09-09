@@ -26,12 +26,31 @@ function runningInDocker(): boolean {
 }
 
 /**
- * From a Watchfloor container, 127.0.0.1 is the container itself. Rewrite
- * loopback so "this machine" reaches the Docker host (Ollama on the same box).
+ * LAN addresses of this Docker host. Connecting to them from a container is
+ * hairpin NAT and often black-holed; host.docker.internal (host-gateway) works.
+ * Set WATCHFLOOR_HOST_IPS in .env (comma-separated).
  */
-function rewriteLoopback(url: string): string {
+function dockerHostIps(): string[] {
+  return (process.env.WATCHFLOOR_HOST_IPS ?? "")
+    .split(/[,\s]+/)
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+}
+
+/**
+ * From a Watchfloor container, 127.0.0.1 is the container itself, and the
+ * host's LAN IP usually cannot loop back. Send those to the Docker host.
+ */
+function rewriteDockerHost(url: string): string {
   if (!runningInDocker()) return url;
-  return url.replace(/\b127\.0\.0\.1\b/g, "host.docker.internal").replace(/\blocalhost\b/gi, "host.docker.internal");
+  let next = url
+    .replace(/\b127\.0\.0\.1\b/g, "host.docker.internal")
+    .replace(/\blocalhost\b/gi, "host.docker.internal");
+  for (const ip of dockerHostIps()) {
+    const escaped = ip.replace(/\./g, "\\.");
+    next = next.replace(new RegExp(`(^|://)${escaped}(?=[:/]|$)`, "g"), `$1host.docker.internal`);
+  }
+  return next;
 }
 
 function withProtocol(raw: string): string {
@@ -66,9 +85,9 @@ export function resolveLlmBaseUrl(
       kind === "lmstudio"
         ? `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "")
         : parsed.origin;
-    return rewriteLoopback(href);
+    return rewriteDockerHost(href);
   } catch {
-    return rewriteLoopback(fallback.replace(/\/+$/, ""));
+    return rewriteDockerHost(fallback.replace(/\/+$/, ""));
   }
 }
 
@@ -97,7 +116,7 @@ export async function loadLlmRuntime(): Promise<LlmRuntime> {
         ? model
         : settings.llmProvider === "ollama"
           ? ""
-          : (process.env.OLLAMA_MODEL ?? "llama3.1:8b").trim(),
+          : (process.env.OLLAMA_MODEL ?? "qwen2.5:3b").trim(),
     openaiModel:
       settings.llmProvider === "lmstudio" && model ? model : (process.env.OPENAI_MODEL ?? "").trim(),
   };

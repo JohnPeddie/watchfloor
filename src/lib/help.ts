@@ -18,12 +18,12 @@ export const HELP: Record<string, HelpTopic> = {
   stream: {
     title: "Reporting stream",
     body:
-      "Every article currently held — at most 300, with the oldest dropped first — narrowed by the lane and search box. Sort by Recent (newest first), Urgency (FLASH down to ROUTINE), or Tags (defence, UK, conflict, and the rest of the lane order). Urgency and Tags grouping keeps recency as the tie-break. Each row shows its urgency, source, Admiralty grade and time of publication. Select one to read the summary and open the original.",
+      "Every article currently held — size is set in Settings, oldest dropped first — narrowed by the lane and search box. Sort by Recent (newest first), Urgency (FLASH down to ROUTINE), or Tags (defence, UK, conflict, and the rest of the lane order). Urgency and Tags grouping keeps recency as the tie-break. Each row shows its urgency, source, Admiralty grade and time of publication. Select one to read the summary; the spark on Why it matters asks the local LLM for that one line.",
   },
   globe: {
     title: "Geospatial plot",
     body:
-      "Where the reporting is happening. Day and night track real time. Red discs are active warzones (major ongoing armed conflicts). Amber discs are high-severity tropical cyclones — hurricanes and major storms — with violet for a major hurricane. Selecting a brief item or article plants a marker at the subject and, for brief items, draws a spoke from every source toward it. On a PC the plot sits above the stream. On the Fold inner screen it sits beside the list; on the cover, use the Globe tab.",
+      "Where the reporting is happening. Day and night track real time. Red discs are active warzones (major ongoing armed conflicts). Amber discs are high-severity tropical cyclones — hurricanes and major storms — with violet for a major hurricane. Selecting a brief item or article plants a marker at the subject and, for brief items, draws a spoke from every source toward it. On a PC the plot sits above the stream. On a tablet it sits beside the list; on a phone, use the Globe tab.",
   },
   energy: {
     title: "Energy",
@@ -43,12 +43,12 @@ export const HELP: Record<string, HelpTopic> = {
   precedence: {
     title: "Precedence",
     body:
-      "How urgent an item is, graded automatically from its wording and age. FLASH is reserved for strong signals in the headline within the last twelve hours, IMMEDIATE for the same within a day, PRIORITY for corroborating language or urgent wording in a lane that matters here, and ROUTINE for everything else.",
+      "How urgent an item is, graded automatically from its wording and age — not by the LLM. FLASH needs two strong signals in the headline within the last twelve hours, IMMEDIATE one such word within a day, PRIORITY corroborating language or urgent wording in defence, cyber, energy or conflict, and ROUTINE everything else. US-only copy is dropped one rung so Whitehall outranks the Pentagon unless the story also earns a UK tag.",
   },
   classification: {
     title: "Classification",
     body:
-      "Topic tags applied by keyword rules — defence, UK, cyber, energy and so on. An article can carry several. Select a tag to filter the stream and the globe down to it, and select it again to clear.",
+      "Topic tags applied by keyword rules on collect — defence, UK, cyber, energy and so on. Headline hits count more than the excerpt; at most four tags are kept. Theatre tags such as conflict or nuclear need stronger evidence than sector tags, and are never inherited from the feed. Select a tag to filter the stream and the globe, and select it again to clear. The confidence chip is keyword density, not whether the report is true.",
   },
   collection: {
     title: "Collection",
@@ -58,11 +58,11 @@ export const HELP: Record<string, HelpTopic> = {
   summarisation: {
     title: "Summarisation",
     body:
-      "Which engine wrote the daily brief. Rules is offline sentence extraction. LLM uses a local model (LM Studio or Ollama) only to write brief items from clustered reports — not to summarise every article. If the model host is down, the brief falls back to rules, the dashboard keeps working, and the app bar shows that local LLM summaries are offline.",
+      "Which engine wrote the daily brief. Rules is offline sentence extraction. LLM uses a local model (LM Studio or Ollama) only to write brief items from clustered reports — not to summarise every article. Open a report and use the spark on Why it matters to ask the same model for that one line. If the model host is down, the brief falls back to rules, the dashboard keeps working, and the app bar shows that local LLM summaries are offline.",
   },
   settings: {
     title: "Settings",
     body:
-      "Periodic news refresh pulls the RSS feeds on the interval you set. The briefing starts at the time you choose — 06:00 by default — and repeats that many times per day, evenly spaced (four times means every six hours from the start). It catches up if the server was off at a slot. The Local LLM section chooses Ollama or LM Studio and the host IP; leave the host blank to keep the environment default. If the model is down, briefs fall back to rules. Both schedules only run while Watchfloor itself is running. Chrome only drops the address bar permanently (Install app) when the page is opened over HTTPS, such as a Tailscale link — Add to Home screen on plain HTTP is a bookmark.",
+      "Periodic news refresh pulls the RSS feeds on the interval you set. Holdings size is how many articles the stream keeps; oldest drop first if you lower it. The briefing starts at the time you choose — 06:00 by default — and repeats that many times per day, evenly spaced (four times means every six hours from the start). It catches up if the server was off at a slot. The Local LLM section chooses Ollama or LM Studio and the host IP; leave the host blank to keep the environment default. If the model is down, briefs fall back to rules. Open Settings from the cog in the app bar, next to light and dark. Both schedules only run while Watchfloor itself is running. Chrome only drops the address bar permanently (Install app) when the page is opened over HTTPS. Add to Home screen on plain HTTP is a bookmark.",
   },
 };

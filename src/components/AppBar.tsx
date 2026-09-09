@@ -22,6 +22,7 @@ type AppBarProps = {
   dense?: boolean;
   /** True when the configured LLM host cannot be reached. */
   llmOffline?: boolean;
+  onOpenSettings?: () => void;
 };
 
 export function AppBar({
@@ -37,6 +38,7 @@ export function AppBar({
   showViews = false,
   dense = false,
   llmOffline = false,
+  onOpenSettings,
 }: AppBarProps) {
   const [now, setNow] = useState<Date | null>(null);
   const { theme, toggleTheme } = useTheme();
@@ -140,7 +142,7 @@ export function AppBar({
         {llmOffline && (
           <div
             className="md-mono max-w-[7.5rem] truncate rounded-full px-2.5 py-1 text-[10px] font-semibold sm:max-w-[16rem]"
-            title="LM Studio on the workstation is unreachable. Watchfloor still runs; daily briefs fall back to the rules engine until it is back."
+            title="The configured local LLM host is unreachable. Watchfloor still runs; daily briefs fall back to the rules engine until it is back."
             style={{
               background: "var(--md-error-container)",
               color: "var(--md-error)",
@@ -159,6 +161,18 @@ export function AppBar({
         >
           <Icon name={theme === "light" ? "dark_mode" : "light_mode"} size={19} />
         </button>
+
+        {onOpenSettings && (
+          <button
+            type="button"
+            className="md-icon-btn"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+            title="Settings"
+          >
+            <Icon name="settings" size={19} />
+          </button>
+        )}
 
         {!standalone && (
           <button

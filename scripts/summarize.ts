@@ -1,13 +1,14 @@
 import { prisma } from "../src/lib/db";
 import { mapLimit } from "../src/lib/extract";
-import { parseJsonArray } from "../src/lib/serializers";
+import { isLlmImplicationSource, parseJsonArray } from "../src/lib/serializers";
 import { rulesProvider } from "../src/lib/summarize";
 import type { Tag } from "../src/lib/classify";
 
 /**
  * Re-applies the offline rules engine to stored articles (extractive
- * analysis, tag-driven implication). Article text is never sent to the LLM;
- * that is reserved for composing daily brief items via `npm run brief`.
+ * analysis, tag-driven implication). Article text is never sent to the LLM
+ * here; the model is reserved for daily brief items and the on-demand
+ * why-it-matters spark.
  */
 function arg(name: string, fallback: number): number {
   const prefix = `--${name}=`;
@@ -49,11 +50,15 @@ async function main() {
 
       if (!result.analysis) return;
 
+      const keepLlmImplication = isLlmImplicationSource(article.implicationSource);
       await prisma.article.update({
         where: { id: article.id },
         data: {
           analysis: result.analysis,
-          implication: result.implication ?? article.implication,
+          implication: keepLlmImplication
+            ? article.implication
+            : (result.implication ?? article.implication),
+          implicationSource: keepLlmImplication ? article.implicationSource : "rules",
           analysisSource: "rules",
           analysedAt: new Date(),
         },

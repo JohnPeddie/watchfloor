@@ -40,7 +40,8 @@ export type ResolvedProvider = {
  * host is off, the model was never pulled, the LAN is down — we degrade to the
  * rules engine rather than failing the run, and report that we did so. This is
  * what makes it safe to leave SUMMARIZER=openai (or ollama) set permanently.
- * The LLM is only used to compose daily brief items, not per-article summaries.
+ * The LLM is only used to compose daily brief items and on-demand
+ * why-it-matters lines, not per-article summaries.
  */
 export async function resolveProvider(id?: string): Promise<ResolvedProvider> {
   const requestedId = id ?? (await configuredProviderId());

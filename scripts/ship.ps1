@@ -1,27 +1,53 @@
-# Push this checkout to GitHub, then rebuild Watchfloor on the home server.
+# Push this checkout to origin, then rebuild Watchfloor on the server in .env.
 #
-#   $env:WATCHFLOOR_SSH_USER = "your-linux-login"
+# Fill deploy/site.env.example into .env first (WATCHFLOOR_SERVER, WATCHFLOOR_SSH_USER).
+#
 #   .\scripts\ship.ps1
-#
-# Optional:
-#   .\scripts\ship.ps1 -SkipPush          # server rebuild only
-#   .\scripts\ship.ps1 -User flaz -Server 192.168.8.69
+#   .\scripts\ship.ps1 -SkipPush
 
 param(
-  [string]$Server = $(if ($env:WATCHFLOOR_SERVER) { $env:WATCHFLOOR_SERVER } else { "192.168.8.69" }),
-  [string]$User = $(if ($env:WATCHFLOOR_SSH_USER) { $env:WATCHFLOOR_SSH_USER } else { "" }),
-  [string]$RemoteDir = $(if ($env:WATCHFLOOR_REMOTE_DIR) { $env:WATCHFLOOR_REMOTE_DIR } else { "~/watchfloor" }),
+  [string]$Server = "",
+  [string]$User = "",
+  [string]$RemoteDir = "",
   [switch]$SkipPush
 )
 
 $ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $PSScriptRoot
 
-if (-not $User) {
+function Read-DotEnvValue([string]$Path, [string]$Key) {
+  if (-not (Test-Path $Path)) { return $null }
+  foreach ($line in Get-Content $Path) {
+    if ($line -match "^\s*$Key=(.*)$") {
+      return $Matches[1].Trim().Trim('"').Trim("'")
+    }
+  }
+  return $null
+}
+
+$envFile = @(
+  (Join-Path $Root "deploy\site.env"),
+  (Join-Path $Root ".env")
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $Server) { $Server = $env:WATCHFLOOR_SERVER }
+if (-not $Server -and $envFile) { $Server = Read-DotEnvValue $envFile "WATCHFLOOR_SERVER" }
+
+if (-not $User) { $User = $env:WATCHFLOOR_SSH_USER }
+if (-not $User -and $envFile) { $User = Read-DotEnvValue $envFile "WATCHFLOOR_SSH_USER" }
+
+if (-not $RemoteDir) { $RemoteDir = $env:WATCHFLOOR_REMOTE_DIR }
+if (-not $RemoteDir -and $envFile) { $RemoteDir = Read-DotEnvValue $envFile "WATCHFLOOR_REMOTE_DIR" }
+if (-not $RemoteDir) { $RemoteDir = "~/watchfloor" }
+
+if (-not $User -or -not $Server -or $Server -eq "YOUR_SERVER" -or $User -eq "YOUR_SSH_USER") {
   Write-Error @"
-Set your Linux SSH login first, then rerun:
+Set the deploy host in .env (from deploy/site.env.example):
 
-  `$env:WATCHFLOOR_SSH_USER = 'your-linux-username'
-  .\scripts\ship.ps1
+  WATCHFLOOR_SERVER=your.server.hostname
+  WATCHFLOOR_SSH_USER=your-linux-username
+
+Or pass -Server and -User.
 "@
 }
 
@@ -29,7 +55,7 @@ if (-not $SkipPush) {
   Write-Host "Pushing HEAD to origin…"
   git push origin HEAD
   if ($LASTEXITCODE -ne 0) {
-    Write-Error "git push failed. Use an account that can write JohnPeddie/watchfloor, then rerun."
+    Write-Error "git push failed. Check that this checkout can write to origin, then rerun."
   }
 }
 
@@ -40,4 +66,9 @@ if ($LASTEXITCODE -ne 0) {
   Write-Error "Remote deploy failed."
 }
 
-Write-Host "Done. Dashboard: http://${Server}:3050"
+$port = "3050"
+if ($envFile) {
+  $fromEnv = Read-DotEnvValue $envFile "WATCHFLOOR_PORT"
+  if ($fromEnv) { $port = $fromEnv }
+}
+Write-Host "Done. Dashboard: http://${Server}:${port}"

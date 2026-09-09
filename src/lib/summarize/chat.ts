@@ -178,5 +178,36 @@ export function createChatProvider(opts: {
       const parsed = parseJsonObject(await opts.complete(prompt, ANALYST_SYSTEM));
       return parsed ? asText(parsed.bluf) : null;
     },
+
+    async writeImplication(input: ArticleInput): Promise<string | null> {
+      const source = (input.bodyText ?? input.summary ?? "").slice(
+        0,
+        Math.min(contextChars(), 2800),
+      );
+      const prompt = [
+        "Write why this report matters to a UK all-source watchfloor.",
+        "",
+        'Return JSON with one key: "implication".',
+        "One or two short sentences. Lead with why a UK reader should care,",
+        "then the single thing to watch next. Do not invent. Do not recap the story.",
+        "Use only this article.",
+        "",
+        `Headline: ${input.title}`,
+        `Source: ${input.sourceName}`,
+        input.placeLabel ? `Location: ${input.placeLabel}` : "",
+        input.tags.length > 0 ? `Tags: ${input.tags.join(", ")}` : "",
+        "",
+        "Report:",
+        source || input.title,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const parsed = parseJsonObject(await opts.complete(prompt, ANALYST_SYSTEM));
+      if (!parsed) {
+        throw new Error(`${opts.label} returned unparseable JSON for the why-it-matters line`);
+      }
+      return asText(parsed.implication);
+    },
   };
 }

@@ -1,6 +1,6 @@
 /** Timezone used for schedules and "today" stats. */
 export function zone(): string {
-  return process.env.TZ?.trim() || "Europe/London";
+  return process.env.TZ?.trim() || "UTC";
 }
 
 /** YYYY-MM-DD in the configured zone. */

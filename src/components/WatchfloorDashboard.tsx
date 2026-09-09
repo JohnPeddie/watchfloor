@@ -79,7 +79,7 @@ export function WatchfloorDashboard() {
   );
 
   const loadFiltered = useCallback(async () => {
-    const params = new URLSearchParams({ limit: "150" });
+    const params = new URLSearchParams();
     if (activeTag) params.set("tag", activeTag);
     if (query.trim()) params.set("q", query.trim());
     const res = await fetch(`/api/articles?${params.toString()}`).then((r) => r.json());
@@ -94,7 +94,7 @@ export function WatchfloorDashboard() {
   const loadBase = useCallback(async () => {
     const [briefRes, allRes, marketsRes, summarizerRes] = await Promise.all([
       fetch("/api/brief").then((r) => r.json()),
-      fetch("/api/articles?limit=300").then((r) => r.json()),
+      fetch("/api/articles").then((r) => r.json()),
       fetch("/api/markets").then((r) => r.json()),
       // Non-critical: a failed probe should not blank the dashboard.
       fetch("/api/summarizer")
@@ -268,6 +268,22 @@ export function WatchfloorDashboard() {
     flyTo(article.lat, article.lng);
   }
 
+  function patchArticleImplication(
+    articleId: string,
+    implication: string,
+    implicationSource: string,
+  ) {
+    const apply = (list: ArticleDTO[]) =>
+      list.map((item) =>
+        item.id === articleId ? { ...item, implication, implicationSource } : item,
+      );
+    setArticles(apply);
+    setAllArticles(apply);
+    setSelectedArticle((current) =>
+      current?.id === articleId ? { ...current, implication, implicationSource } : current,
+    );
+  }
+
   function onSelectPin(pin: GlobePin) {
     if (pin.kind === "story") {
       const story = brief?.stories.find((s) => s.id === pin.id.replace("story:", ""));
@@ -416,6 +432,7 @@ export function WatchfloorDashboard() {
       relatedArticles={selectedArticle ? [] : relatedArticles}
       onClose={closeDetail}
       onOpenArticle={onSelectArticle}
+      onImplicationUpdated={patchArticleImplication}
     />
   );
 
@@ -536,6 +553,7 @@ export function WatchfloorDashboard() {
           showViews={isInner}
           dense={denseChrome}
           llmOffline={llmOffline}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         {llmOffline && (
@@ -548,8 +566,8 @@ export function WatchfloorDashboard() {
             }}
           >
             {denseChrome
-              ? "Local LLM summaries offline — briefs use rules until the workstation is back."
-              : "Local LLM summaries are offline. Watchfloor still runs; daily briefs use the rules engine until LM Studio on the workstation is reachable."}
+              ? "Local LLM summaries offline — briefs use rules until the host is back."
+              : "Local LLM summaries are offline. Watchfloor still runs; daily briefs use the rules engine until the model host is reachable."}
           </div>
         )}
 
@@ -585,30 +603,6 @@ export function WatchfloorDashboard() {
           }}
           flashCount={precedenceCounts.FLASH ?? 0}
         />
-      )}
-
-      {!(isCompact && reading && (pane === "brief" || pane === "articles")) && (
-        <button
-          type="button"
-          className="md-icon-btn"
-          style={{
-            position: "fixed",
-            left: "max(12px, env(safe-area-inset-left))",
-            bottom: isCompact
-              ? "calc(12px + 3.5rem + env(safe-area-inset-bottom))"
-              : "max(12px, env(safe-area-inset-bottom))",
-            zIndex: 80,
-            width: 40,
-            height: 40,
-            background: "var(--md-container-high)",
-            boxShadow: "var(--elev-3)",
-            color: "var(--md-on-surface-variant)",
-          }}
-          aria-label="Open settings"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <Icon name="settings" size={18} />
-        </button>
       )}
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />

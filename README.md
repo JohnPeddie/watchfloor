@@ -7,22 +7,18 @@ watchfloor.
 Runs on your own machines. No API keys, no cloud services, no paywalled
 scrapers.
 
-| Role | Address | What it does |
-| --- | --- | --- |
-| Production dashboard | `192.168.8.69:3050` | Linux home server, Docker |
-| Local LLM | `192.168.8.60:1234` | This PC, LM Studio (Gemma / whatever is loaded) |
+Hosts and LLM URLs are not in this repo. Copy
+[`deploy/site.env.example`](deploy/site.env.example) to `.env` and fill it in
+before you deploy.
 
-If the PC is off, the dashboard still works. Daily briefs fall back to the
-rules engine, and the UI warns that local LLM summaries are offline.
-
-**Deploy and update the server:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+**Deploy:** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## What it does
 
-- **Ingests** curated RSS feeds across seven lanes (UK, UK Defence, Conflict, Oil & Gas, Markets, Cyber, Intel). Holdings cap at 300 articles; oldest drop first.
+- **Ingests** curated RSS feeds across UK, defence, conflict, cyber, energy, markets, tech, US, sport, and intel. Holdings size is set in Settings (default 300); oldest drop first. General news feeds take a full ingest quota; niche sport feeds take a quarter so they cannot crowd the stream.
 - **Extracts** the article body and usable images from each source page.
 - **Classifies** each item with sector tags, a signal precedence (`FLASH` / `IMMEDIATE` / `PRIORITY` / `ROUTINE`), and an Admiralty-code source grade. That path is rules-only — the model never summarises the whole stream.
-- **Briefs** the day: at least five stories, up to twelve when the day is busy. A local LLM writes those items and the BLUF when it is reachable.
+- **Briefs** the day: at least five stories, more when the day is busy. A local LLM writes those items and the BLUF when it is reachable.
 - **Plots** geolocated stories on a globe with the real-time solar terminator, plus warzone and tropical-cyclone overlays.
 - **Tracks** Brent/WTI, FTSE, GBP/USD, and sector ETF proxies (tech, defence, oil & gas, AI, cyber).
 
@@ -32,16 +28,54 @@ The shell follows the device, not a collapsed version of the desktop.
 
 | Surface | What you get |
 | --- | --- |
-| PC / large desktop | Original three-column watchfloor: lane rail, brief, globe over the stream, insight column. |
+| PC / large desktop | Three-column watchfloor: lane rail, brief, globe over the stream, insight column. |
 | Laptop width | Brief + globe over the stream. Markets and the summariser card appear at desktop width; the LLM-offline strip in the app bar still shows. |
-| Galaxy Z Fold inner | Brief / Articles / Markets tabs, list beside the globe. |
-| Fold cover / phone | One pane at a time with a bottom nav. |
+| Tablet / foldable inner | Brief / Articles / Markets tabs, list beside the globe. |
+| Phone / foldable cover | One pane at a time with a bottom nav. |
 
-Theme, collect, fullscreen, and (when the workstation is down) the LLM-offline warning sit in the app bar. Collection cadence and the morning brief slot are in the settings cog.
+Theme, settings, collect, fullscreen, and (when the model host is down) the LLM-offline warning sit in the app bar. Collection cadence, holdings size, brief slots, and which local model to use are in Settings.
 
-## Quick start (this PC)
+## How classification works
+
+Every collected article is tagged and graded by keyword rules in
+[`src/lib/classify.ts`](src/lib/classify.ts). No model is involved.
+
+**Tags** come from word lists (NATO, ransomware, Bank of England, and so on).
+Matches are whole words, so `uk` does not fire inside `Ukrainians`. A hit in
+the headline counts three times as much as one in the excerpt. At most four
+tags are kept. Theatre tags — KINETIC, TERROR, NUCLEAR, ESPIONAGE — need
+stronger evidence than sector tags, so a court story is not labelled as a war.
+The collecting feed can seed a sector tag (BBC UK → UK, a cyber feed → CYBER)
+but never a theatre tag.
+
+**Precedence** is a second, smaller list plus how old the item is:
+
+| Grade | What it needs |
+| --- | --- |
+| **FLASH** | Two distinct flash words in the **headline**, published in the last 12 hours |
+| **IMMEDIATE** | One flash word in the headline, last 24 hours |
+| **PRIORITY** | Two flash/immediate words in title+excerpt, or one such word plus DEFENCE / CYBER / ENERGY / KINETIC |
+| **ROUTINE** | Everything else |
+
+US-only copy then drops one rung, so a Pentagon story that would be IMMEDIATE
+becomes PRIORITY unless the text (or a UK feed) also earns a UK tag.
+
+**Confidence** (15–92%) is keyword density, not “this report is true.”
+
+The **summary** on the article is a separate extractive pass: a few informative
+sentences from the body. The canned **Why it matters** line is a UK-desk
+template from the strongest substance tag. Open a report and use the spark to
+ask the local LLM to rewrite that one line; the rest of the stream stays
+rules-only.
+
+After changing the word lists, re-tag stored articles with
+`npm run reclassify`. That does not re-fetch pages, and it does not overwrite
+an LLM why-it-matters line.
+
+## Quick start (development)
 
 ```bash
+cp .env.example .env
 npm install
 npm run db:setup
 npm run ingest
@@ -51,14 +85,14 @@ npm run dev
 
 Open [http://localhost:3050](http://localhost:3050). Port **3050** is deliberate so it does not collide with whatever else is on 3000.
 
-To try it from a phone on the same network:
+To try it from another device on the same network:
 
 ```bash
 npm run dev:lan
 npm run where
 ```
 
-> **Windows ARM64 (Snapdragon):** keep `PRISMA_CLIENT_ENGINE_TYPE=binary` in `.env` (see `.env.example`).
+> **Windows ARM64:** keep `PRISMA_CLIENT_ENGINE_TYPE=binary` in `.env` (see `.env.example`).
 
 ### Scripts
 
@@ -84,54 +118,58 @@ npm run brief -- --auto --stories=5    # ignore any authored file
 npm run summarize -- --limit=25
 ```
 
-From Windows, ship a commit to the home server (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#updating-production)):
+From a development machine, ship a commit to the server named in `.env` (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#updating-production)):
 
 ```powershell
-$env:WATCHFLOOR_SSH_USER = "your-linux-login"
 .\scripts\ship.ps1
 ```
 
 ## How summarisation works
 
-Two products, two engines.
+Two products, two engines — plus one optional click.
 
 - **Each article** is tagged and summarised by the rules engine. Collection stays fast and offline.
-- **The daily brief** is the only LLM job. Clusters of corroborating reports go to LM Studio, which writes the items and the bottom line. If that host is down, the same clusters are written extractively instead.
+- **The daily brief** is the main LLM job. Clusters of corroborating reports go to LM Studio or Ollama, which writes the items and the bottom line. If that host is down, the same clusters are written extractively instead.
+- **Why it matters** on an open article can be rewritten by the same model when you click the spark. That is one article at a time, and only when you ask.
 
-| Provider | `SUMMARIZER` | What the LLM writes |
+| Provider | `SUMMARIZER` / Settings | What the LLM writes |
 |---|---|---|
 | Rules engine | `rules` | Nothing — brief items are extractive too. |
-| LM Studio / OpenAI-compat | `openai` or `lmstudio` | Daily brief items and the BLUF, via `/v1/chat/completions`. |
-| Ollama | `ollama` | Same, if you point `OLLAMA_BASE_URL` at an Ollama host. |
+| LM Studio / OpenAI-compat | `lmstudio` or `openai` | Daily brief items, the BLUF, and on-demand why-it-matters, via `/v1/chat/completions`. |
+| Ollama | `ollama` | Same, via `/api/generate`. From Docker, point at `host.docker.internal`, not loopback. |
 
-Leave `SUMMARIZER=lmstudio` set permanently. Ingest never calls the model.
+Leave `SUMMARIZER=lmstudio` (or `ollama`) set permanently. Ingest never calls the model. After a brief or a why-it-matters click, Ollama is asked to unload the weights.
 
 ### Authoring a brief by hand
 
 A file at `content/briefs/YYYY-MM-DD.json` always wins over generation for that date. See [`content/briefs/2026-09-02.json`](content/briefs/2026-09-02.json) for the shape. Each story's `match` array links it to ingested articles by headline substring.
 
-### LM Studio on this PC
+### LM Studio
 
 1. Load the model. Turn **reasoning / thinking** off — Watchfloor needs a JSON object.
-2. Developer → start the server on port **1234**. For the home server, bind **0.0.0.0** / enable Serve on local network.
+2. Developer → start the server on port **1234**. For a remote dashboard, bind **0.0.0.0** / enable Serve on local network.
 3. Allow TCP 1234 from the LAN (elevated): `powershell -ExecutionPolicy Bypass -File scripts\windows-allow-lmstudio.ps1`
 
-On this PC, a local `.env` can keep `OPENAI_BASE_URL=http://127.0.0.1:1234/v1`. On the server, `deploy/env.production` points at `http://192.168.8.60:1234/v1`.
+A local `.env` can keep `OPENAI_BASE_URL=http://127.0.0.1:1234/v1`. On the dashboard host, set the LLM URL in `.env` from [`deploy/site.env.example`](deploy/site.env.example). Switch provider and host in Settings without a rebuild.
 
 ```bash
-curl -s localhost:3050/api/summarizer   # degraded: false when LM Studio is up
+curl -s localhost:3050/api/summarizer   # degraded: false when the chosen host is up
 ```
+
+### Ollama on the same host as Docker
+
+Bind Ollama to all interfaces (`OLLAMA_HOST=0.0.0.0:11434`). From the container, loopback and the host's own LAN IP are the wrong addresses — use `host.docker.internal`, and list the host LAN IPs in `WATCHFLOOR_HOST_IPS` so they are rewritten. On a small CPU-only box, a 3B-class model such as `qwen2.5:3b` is the realistic size.
 
 ## Feeds
 
-Curated list: [`config/feeds.ts`](config/feeds.ts).
+Curated list: [`config/feeds.ts`](config/feeds.ts). Lanes on a feed seed sector tags only; the wording still has to earn kinetic, terror, nuclear, or espionage.
 
 ## Notes
 
 - News is ingested via **RSS plus on-page extraction** of the publisher's own article HTML — no paywall circumvention. Follow the source link to read the full piece.
-- The classification strip (`OSINT // UNCLASSIFIED`) is cosmetic.
+- The classification strip (`OSINT // UNCLASSIFIED`) is cosmetic. The real tags and precedence live on each article.
 - Geolocation uses a small place gazetteer; refine pins in authored briefs as needed.
-- Adding the dashboard to a phone home screen over plain HTTP is a bookmark. Chrome only hides the address bar permanently (installed WebAPK) on HTTPS, for example a Tailscale link. The in-app fullscreen control still works on HTTP.
+- Adding the dashboard to a phone home screen over plain HTTP is a bookmark. Chrome only hides the address bar permanently (installed WebAPK) on HTTPS. The in-app fullscreen control still works on HTTP.
 
 ## Credits
 

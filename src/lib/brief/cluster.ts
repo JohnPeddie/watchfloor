@@ -20,6 +20,8 @@ const PRECEDENCE_RANK: Record<Precedence, number> = {
 /**
  * Weighting reflects what this dashboard is for: UK and UK-adjacent defence
  * first, then the energy and conflict picture, then everything else.
+ * US is collected for the stream but does not compete with UK for brief slots
+ * unless the same story also carries a UK tag (NATO, joint ops, sterling).
  */
 const TAG_WEIGHT: Partial<Record<Tag, number>> = {
   UK: 3.0,
@@ -36,8 +38,13 @@ const TAG_WEIGHT: Partial<Record<Tag, number>> = {
   AIR: 1.0,
   SUPPLY: 0.9,
   TECH: 0.8,
+  US: 0.35,
   POLITICAL: 0.6,
+  SPORT: 0.15,
 };
+
+/** Dropped from clusterScore when a story is US-tagged and not UK-tagged. */
+const US_ONLY_PENALTY = 2.6;
 
 /** Standing interest lanes the brief should try to represent. */
 export const COVERAGE_LANES: Tag[] = [
@@ -234,7 +241,9 @@ function clusterScore(cluster: StoryCluster & { members?: ClusterCandidate[] }):
   const members = cluster.members ?? cluster.articles;
   const urgency = PRECEDENCE_RANK[cluster.precedence] * 2.2;
   const corroboration = Math.log2(1 + new Set(members.map((m) => m.sourceName)).size) * 1.8;
-  const relevance = cluster.tags.reduce((sum, tag) => sum + (TAG_WEIGHT[tag] ?? 0), 0);
+  let relevance = cluster.tags.reduce((sum, tag) => sum + (TAG_WEIGHT[tag] ?? 0), 0);
+  const usOnly = cluster.tags.includes("US") && !cluster.tags.includes("UK");
+  if (usOnly) relevance -= US_ONLY_PENALTY;
   const substance = members.some((m) => (m.bodyText?.length ?? 0) > 800) ? 0.8 : 0;
   return urgency + corroboration + relevance + substance;
 }

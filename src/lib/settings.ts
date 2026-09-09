@@ -1,7 +1,10 @@
 import { prisma } from "./db";
+import { pruneOldestArticles } from "./retention";
 import { todayInZone, zonedDate, zone } from "./clock";
 import {
   DEFAULT_SETTINGS,
+  HOLDINGS_MAX,
+  HOLDINGS_MIN,
   defaultSettings,
   llmProviderFromEnv,
   type LlmProviderId,
@@ -11,6 +14,9 @@ import {
 export {
   BRIEF_FREQUENCIES,
   DEFAULT_SETTINGS,
+  HOLDINGS_MAX,
+  HOLDINGS_MIN,
+  HOLDINGS_SIZES,
   INGEST_INTERVALS,
   LLM_PROVIDERS,
   defaultSettings,
@@ -37,6 +43,7 @@ export function parseSettings(raw: unknown): WatchfloorSettings {
   const hour = Number(o.briefHour);
   const minute = Number(o.briefMinute);
   const times = Number(o.briefTimesPerDay);
+  const holdings = Number(o.holdingsMax);
   const host = typeof o.llmHost === "string" ? o.llmHost.trim().slice(0, 200) : "";
   const model = typeof o.llmModel === "string" ? o.llmModel.trim().slice(0, 120) : "";
   return {
@@ -52,6 +59,10 @@ export function parseSettings(raw: unknown): WatchfloorSettings {
     llmProvider: parseProvider(o.llmProvider) ?? llmProviderFromEnv(),
     llmHost: host,
     llmModel: model,
+    holdingsMax:
+      Number.isFinite(holdings)
+        ? Math.min(HOLDINGS_MAX, Math.max(HOLDINGS_MIN, Math.round(holdings)))
+        : DEFAULT_SETTINGS.holdingsMax,
   };
 }
 
@@ -72,6 +83,7 @@ export async function saveSettings(next: WatchfloorSettings): Promise<Watchfloor
     create: { key: SETTINGS_KEY, value: JSON.stringify(settings) },
     update: { value: JSON.stringify(settings) },
   });
+  await pruneOldestArticles(settings.holdingsMax);
   return settings;
 }
 

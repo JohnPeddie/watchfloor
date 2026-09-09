@@ -18,6 +18,9 @@ export const RAIL_ITEMS: RailItem[] = [
   { id: "cyber", label: "Cyber", icon: "security", tag: "CYBER" },
   { id: "energy", label: "Energy", icon: "drop", tag: "ENERGY" },
   { id: "markets", label: "Markets", icon: "trending", tag: "MARKETS" },
+  { id: "tech", label: "Tech", icon: "memory", tag: "TECH" },
+  { id: "us", label: "US", icon: "flag", tag: "US" },
+  { id: "sport", label: "Sport", icon: "sports", tag: "SPORT" },
   { id: "intel", label: "Intel", icon: "radar", tag: "ESPIONAGE" },
 ];
 

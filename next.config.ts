@@ -2,16 +2,13 @@ import type { NextConfig } from "next";
 
 /**
  * Every address a client on this network can legitimately reach the dev server
- * from: RFC1918 home LAN and Docker bridge ranges, plus the CGNAT range and
- * domain used by Tailscale.
+ * from: RFC1918, Docker bridges, CGNAT overlays, and .local hostnames.
  */
 const privateDevOrigins = [
   "10.*.*.*",
   "192.168.*.*",
   ...Array.from({ length: 16 }, (_, i) => `172.${16 + i}.*.*`),
   "100.*.*.*",
-  "*.ts.net",
-  "watchfloor.local",
   "*.local",
 ];
 

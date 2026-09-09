@@ -6,6 +6,7 @@
 export type Tag =
   | "DEFENCE"
   | "UK"
+  | "US"
   | "ENERGY"
   | "MARKETS"
   | "CYBER"
@@ -18,13 +19,15 @@ export type Tag =
   | "SANCTIONS"
   | "POLITICAL"
   | "SUPPLY"
-  | "TECH";
+  | "TECH"
+  | "SPORT";
 
 export type Precedence = "FLASH" | "IMMEDIATE" | "PRIORITY" | "ROUTINE";
 
 export const TAG_ORDER: Tag[] = [
   "DEFENCE",
   "UK",
+  "US",
   "KINETIC",
   "CYBER",
   "ENERGY",
@@ -38,6 +41,7 @@ export const TAG_ORDER: Tag[] = [
   "SUPPLY",
   "POLITICAL",
   "TECH",
+  "SPORT",
 ];
 
 const TAG_RULES: Record<Tag, { terms: string[]; weight?: number }> = {
@@ -59,6 +63,15 @@ const TAG_RULES: Record<Tag, { terms: string[]; weight?: number }> = {
       "number 10", "hmrc", "nhs", "gchq", "mi5", "mi6",
       "sterling", "bank of england", "ofgem", "north sea", "royal navy",
       "royal air force", "ministry of defence",
+    ],
+    weight: 3,
+  },
+  US: {
+    terms: [
+      "united states", "u.s.", "u.s.a.", "usa", "white house", "capitol hill",
+      "congress", "senate", "house of representatives", "state department",
+      "fbi", "cia", "homeland security", "california", "texas", "new york",
+      "pentagon", "department of defense", "u.s. army", "u.s. navy",
     ],
     weight: 3,
   },
@@ -171,10 +184,19 @@ const TAG_RULES: Record<Tag, { terms: string[]; weight?: number }> = {
   TECH: {
     terms: [
       "artificial intelligence", "ai", "quantum", "satellite", "space launch",
-      "starlink", "chip", "chips", "data centre", "data center", "algorithm",
-      "autonomous", "robotics", "5g", "6g",
+      "starlink", "chip", "chips", "semiconductor", "data centre", "data center",
+      "algorithm", "autonomous", "robotics", "5g", "6g", "nvidia", "openai",
+      "smartphone", "software", "startup",
     ],
     weight: 1,
+  },
+  SPORT: {
+    terms: [
+      "formula 1", "formula one", "grand prix", "motorsport", "motorsports",
+      "moto gp", "motogp", "nascar", "wrc", "le mans", "indy 500", "rally",
+      "f1", "premier league", "champions league", "world cup",
+    ],
+    weight: 2,
   },
 };
 
@@ -230,6 +252,13 @@ function countMatches(haystack: string, terms: string[]): number {
   return found.size;
 }
 
+function demotePrecedence(precedence: Precedence): Precedence {
+  if (precedence === "FLASH") return "IMMEDIATE";
+  if (precedence === "IMMEDIATE") return "PRIORITY";
+  if (precedence === "PRIORITY") return "ROUTINE";
+  return "ROUTINE";
+}
+
 export function classify(input: {
   title: string;
   summary?: string | null;
@@ -261,13 +290,16 @@ export function classify(input: {
     markets: "MARKETS",
     cyber: "CYBER",
     intel: "POLITICAL",
+    tech: "TECH",
+    us: "US",
+    sport: "SPORT",
   };
   const laneTags = (input.feedLanes ?? [])
     .map((lane) => laneTagMap[lane])
     .filter(Boolean) as Tag[];
 
   for (const tag of laneTags) {
-    if (scores.has(tag)) scores.set(tag, (scores.get(tag) ?? 0) + 3);
+    scores.set(tag, (scores.get(tag) ?? 0) + 3);
   }
 
   // Theatre-level tags need stronger evidence than sector tags, otherwise a
@@ -312,6 +344,15 @@ export function classify(input: {
     precedence = "PRIORITY";
   }
 
+  // US-only reporting is one rung lower than the same wording would be for a
+  // UK-relevant item, so Defence → Urgency still puts Whitehall above the
+  // Pentagon unless the story also earns a UK tag (NATO, Five Eyes, sterling).
+  const ukRelevant = (scores.get("UK") ?? 0) >= 3 || laneTags.includes("UK");
+  const usMarked = (scores.get("US") ?? 0) >= 3 || laneTags.includes("US");
+  if (usMarked && !ukRelevant) {
+    precedence = demotePrecedence(precedence);
+  }
+
   const topScore = Math.max(0, ...scores.values());
   const confidence = Math.max(15, Math.min(92, Math.round(30 + topScore * 4)));
 
@@ -334,6 +375,8 @@ export const TAG_STYLES: Record<Tag, { fg: string; bg: string; border: string }>
   POLITICAL: { fg: "#a8b6c8", bg: "rgba(130,150,175,0.10)", border: "rgba(130,150,175,0.32)" },
   SUPPLY: { fg: "#b3cf94", bg: "rgba(140,180,100,0.10)", border: "rgba(140,180,100,0.38)" },
   TECH: { fg: "#a5bede", bg: "rgba(120,150,200,0.10)", border: "rgba(120,150,200,0.34)" },
+  US: { fg: "#8fb4ff", bg: "rgba(70,120,220,0.10)", border: "rgba(70,120,220,0.42)" },
+  SPORT: { fg: "#e8a070", bg: "rgba(210,120,60,0.10)", border: "rgba(210,120,60,0.42)" },
 };
 
 export const PRECEDENCE_STYLES: Record<Precedence, { fg: string; bg: string }> = {

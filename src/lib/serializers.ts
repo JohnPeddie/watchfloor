@@ -7,6 +7,8 @@ export type ArticleDTO = {
   summary: string | null;
   analysis: string | null;
   implication: string | null;
+  /** "rules", or a local model id when the operator asked the LLM for this line. */
+  implicationSource: string | null;
   url: string;
   sourceName: string;
   sourceCode: string;
@@ -180,12 +182,18 @@ export function splitParagraphs(body: string): string[] {
     .filter(Boolean);
 }
 
+/** True when the stored why-it-matters line came from a local model, not templates. */
+export function isLlmImplicationSource(source: string | null | undefined): boolean {
+  return Boolean(source && source !== "rules");
+}
+
 export function toArticleDTO(article: {
   id: string;
   title: string;
   summary: string | null;
   analysis: string | null;
   implication: string | null;
+  implicationSource?: string | null;
   url: string;
   sourceName: string;
   sourceCode: string;
@@ -208,6 +216,7 @@ export function toArticleDTO(article: {
     summary: article.summary,
     analysis: article.analysis,
     implication: article.implication,
+    implicationSource: article.implicationSource ?? null,
     url: article.url,
     sourceName: article.sourceName,
     sourceCode: article.sourceCode,

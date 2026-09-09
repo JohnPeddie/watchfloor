@@ -40,9 +40,9 @@ export const viewport: Viewport = {
   // The globe is a pan/zoom surface, so page-level pinch zoom fights with it.
   maximumScale: 1,
   themeColor: "#0b0e11",
-  // Extends under the Fold punch-hole and rounded corners.
+  // Extends under display cutouts and rounded corners.
   viewportFit: "cover",
-  // Keyboard on the cover should shrink the list, not overlay the field.
+  // Keyboard on a compact cover should shrink the list, not overlay the field.
   interactiveWidget: "resizes-content",
 };
 

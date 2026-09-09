@@ -3,13 +3,13 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
- * Galaxy Z Fold 8 — the two screens the scaled UI is built around.
+ * Foldable cover vs inner screen, or any phone-sized viewport.
  *
- * Cover (folded): 5.5" 10:16, CSS typically 416–475 × 657–751.
- * Inner (open): 7.6" 4:3, CSS typically 616–704 × 816–933.
+ * Cover (folded / phone): CSS typically under ~540 on the short side.
+ * Inner (open tablet): larger, often 4:3.
  *
  * PCs and laptops are detected separately (fine pointer + hover) so a
- * desktop window never inherits the Fold shell.
+ * desktop window never inherits the compact shell.
  */
 export const FOLD8_COVER_MAX_MIN_SIDE = 540;
 const COVER_LANDSCAPE_MAX_WIDTH = 760;
@@ -112,7 +112,7 @@ function readFloorKind(): FloorKind {
   return readIsCover() ? "cover" : "inner";
 }
 
-/** Cover screen of the Fold, or any phone-sized viewport. */
+/** Cover screen of a foldable, or any phone-sized viewport. */
 export function useIsCompact(): boolean {
   return useSyncExternalStore(
     subscribeViewport,

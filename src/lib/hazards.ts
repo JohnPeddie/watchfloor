@@ -5,7 +5,7 @@ import type { HazardMark, HazardsPayload } from "./hazard-geometry";
 
 const CACHE_KEY = "overlayHazards";
 const CACHE_MS = 30 * 60 * 1000;
-const USER_AGENT = "WATCHFLOOR/1.0 (local OSINT dashboard; https://github.com/JohnPeddie/watchfloor)";
+const USER_AGENT = "WATCHFLOOR/1.0 (local OSINT dashboard)";
 
 /**
  * Wikipedia names the conflict; these hints put the disc on the fighting

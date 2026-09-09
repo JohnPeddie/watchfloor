@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { HelpButton } from "@/components/HelpButton";
 import type { OpsSnapshot } from "@/lib/serializers";
-import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, INGEST_INTERVALS, LLM_PROVIDERS, defaultSettings, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
+import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, HOLDINGS_SIZES, INGEST_INTERVALS, LLM_PROVIDERS, defaultSettings, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
 import { hostLabel, humanizeModelName } from "@/lib/model-label";
 
 type SettingsSheetProps = {
@@ -107,7 +107,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
 
   if (!open) return null;
 
-  const tz = snapshot?.timezone ?? "Europe/London";
+  const tz = snapshot?.timezone ?? "UTC";
   const llm = snapshot?.llm;
   const collection = snapshot?.collection;
   const brief = snapshot?.brief;
@@ -182,6 +182,21 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                 >
                   {INGEST_INTERVALS.map((option) => (
                     <option key={option.minutes} value={option.minutes}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <div className="md-label-sm mb-1">Holdings size</div>
+                <select
+                  className="md-field"
+                  disabled={saving}
+                  value={draft.holdingsMax ?? 300}
+                  onChange={(event) => patch({ holdingsMax: Number(event.target.value) })}
+                >
+                  {HOLDINGS_SIZES.map((option) => (
+                    <option key={option.count} value={option.count}>
                       {option.label}
                     </option>
                   ))}
@@ -322,8 +337,8 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                       autoComplete="off"
                       placeholder={
                         draft.llmProvider === "ollama"
-                          ? "192.168.8.69 or host.docker.internal"
-                          : "192.168.8.60"
+                          ? "host.docker.internal"
+                          : "http://llm-host:1234/v1"
                       }
                       value={draft.llmHost ?? ""}
                       onChange={(event) => setDraft((prev) => ({ ...prev, llmHost: event.target.value }))}
@@ -342,7 +357,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                       disabled={saving}
                       spellCheck={false}
                       autoComplete="off"
-                      placeholder={draft.llmProvider === "ollama" ? "llama3.1:8b" : "Leave blank for the loaded model"}
+                      placeholder={draft.llmProvider === "ollama" ? "qwen2.5:3b" : "Leave blank for the loaded model"}
                       value={draft.llmModel ?? ""}
                       onChange={(event) => setDraft((prev) => ({ ...prev, llmModel: event.target.value }))}
                       onBlur={() => {
@@ -354,7 +369,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   </label>
                   <p className="md-label-sm leading-relaxed">
                     {draft.llmProvider === "ollama"
-                      ? "Port defaults to 11434. If Watchfloor is in Docker and Ollama is on this server, use the server LAN IP or host.docker.internal — not 127.0.0.1. Ollama must listen on 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)."
+                      ? "Port defaults to 11434. From Docker, leave host blank or use host.docker.internal — not 127.0.0.1, and not the host's LAN IP. Ollama must listen on 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)."
                       : "Port defaults to 1234. Point this at the machine running LM Studio."}
                   </p>
                 </>

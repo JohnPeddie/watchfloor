@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "../db";
+import { loadSettings } from "../settings";
 import type { Precedence, Tag } from "../classify";
 import type { StoryDraft } from "../summarize/types";
 import { briefTitle, writeBrief } from "./generate";
@@ -64,7 +65,7 @@ async function findRelatedArticles(match: string[] | undefined): Promise<string[
   const rows = await prisma.article.findMany({
     select: { id: true, title: true, publishedAt: true },
     orderBy: { publishedAt: "desc" },
-    take: 300,
+    take: (await loadSettings()).holdingsMax,
   });
 
   const needles = match.map((m) => m.toLowerCase());

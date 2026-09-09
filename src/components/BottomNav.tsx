@@ -2,7 +2,7 @@
 
 import { Icon } from "@/components/Icon";
 
-/** The four panes, shown one at a time on the Fold cover / phone screen. */
+/** The four panes, shown one at a time on a phone or foldable cover. */
 export type PaneId = "brief" | "articles" | "map" | "markets";
 
 const DESTINATIONS: { id: PaneId; label: string; icon: string }[] = [
@@ -20,7 +20,7 @@ type BottomNavProps = {
 };
 
 /**
- * Material navigation bar for the Fold cover. The inner screen uses the
+ * Material navigation bar for a phone-sized cover. Wider inner screens use the
  * top-bar views instead.
  */
 export function BottomNav({ active, onChange, flashCount }: BottomNavProps) {

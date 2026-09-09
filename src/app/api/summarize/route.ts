@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import type { Tag } from "@/lib/classify";
 import { mapLimit } from "@/lib/extract";
-import { parseJsonArray } from "@/lib/serializers";
+import { isLlmImplicationSource, parseJsonArray } from "@/lib/serializers";
 import { rulesProvider } from "@/lib/summarize";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export const maxDuration = 300;
  * Re-applies the offline rules engine to a batch of articles.
  *
  * Per-article LLM summaries are not a thing: tagging and extractive analysis
- * stay on the rules engine. The local model only writes daily brief items.
+ * stay on the rules engine. The local model writes daily brief items, and
+ * an on-demand why-it-matters line when the operator asks.
  */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -44,11 +45,15 @@ export async function POST(req: NextRequest) {
       });
       if (!result.analysis) return;
 
+      const keepLlmImplication = isLlmImplicationSource(article.implicationSource);
       await prisma.article.update({
         where: { id: article.id },
         data: {
           analysis: result.analysis,
-          implication: result.implication ?? article.implication,
+          implication: keepLlmImplication
+            ? article.implication
+            : (result.implication ?? article.implication),
+          implicationSource: keepLlmImplication ? article.implicationSource : "rules",
           analysisSource: "rules",
           analysedAt: new Date(),
         },

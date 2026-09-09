@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { MediaFrame } from "@/components/MediaFrame";
 import { dtg } from "@/lib/dtg";
 import type { ArticleDTO, BriefStoryDTO } from "@/lib/serializers";
+import { isLlmImplicationSource } from "@/lib/serializers";
 
 type DetailSheetProps = {
   story: BriefStoryDTO | null;
@@ -13,6 +14,11 @@ type DetailSheetProps = {
   relatedArticles: ArticleDTO[];
   onClose: () => void;
   onOpenArticle: (article: ArticleDTO) => void;
+  onImplicationUpdated?: (
+    articleId: string,
+    implication: string,
+    implicationSource: string,
+  ) => void;
   /**
    * overlay — bottom sheet over the globe.
    * pane — fills its layout slot (cover and inner).
@@ -26,12 +32,17 @@ export function DetailSheet({
   relatedArticles,
   onClose,
   onOpenArticle,
+  onImplicationUpdated,
   variant = "overlay",
 }: DetailSheetProps) {
   const [activeImage, setActiveImage] = useState(0);
+  const [implicationBusy, setImplicationBusy] = useState(false);
+  const [implicationError, setImplicationError] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveImage(0);
+    setImplicationBusy(false);
+    setImplicationError(null);
   }, [article?.id, story?.id]);
 
   useEffect(() => {
@@ -41,6 +52,28 @@ export function DetailSheet({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  async function askWhyItMatters() {
+    if (!article || implicationBusy) return;
+    setImplicationBusy(true);
+    setImplicationError(null);
+    try {
+      const res = await fetch(`/api/articles/${article.id}/implication`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        implication?: string | null;
+        implicationSource?: string | null;
+        error?: string;
+      };
+      if (!res.ok || !data.implication) {
+        throw new Error(data.error ?? "The local model could not rewrite this line.");
+      }
+      onImplicationUpdated?.(article.id, data.implication, data.implicationSource ?? "llm");
+    } catch (error) {
+      setImplicationError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setImplicationBusy(false);
+    }
+  }
 
   if (!story && !article) return null;
 
@@ -195,28 +228,55 @@ export function DetailSheet({
                   </p>
                 </section>
 
-                {article.implication && (
-                  <section
-                    className="rounded-2xl p-3"
-                    style={{
-                      background: "var(--md-primary-container)",
-                      color: "var(--md-on-primary-container)",
-                    }}
-                  >
+                <section
+                  className="rounded-2xl p-3"
+                  style={{
+                    background: "var(--md-primary-container)",
+                    color: "var(--md-on-primary-container)",
+                  }}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
                     <h3
-                      className="md-label mb-1 flex items-center gap-1.5"
+                      className="md-label flex items-center gap-1.5"
                       style={{ color: "var(--md-on-primary-container)" }}
                     >
                       <Icon name="insights" size={15} />
                       Why it matters
                     </h3>
+                    <button
+                      type="button"
+                      className="md-icon-btn md-icon-btn-sm"
+                      style={{ color: "inherit" }}
+                      disabled={implicationBusy}
+                      onClick={() => void askWhyItMatters()}
+                      aria-label="Ask the local LLM why this matters"
+                      title="Ask the local LLM why this matters"
+                    >
+                      <Icon
+                        name={implicationBusy ? "refresh" : "spark"}
+                        size={16}
+                        className={implicationBusy ? "md-spin" : undefined}
+                      />
+                    </button>
+                  </div>
+                  {implicationError && (
+                    <p className="mb-2 text-[12px] leading-snug">{implicationError}</p>
+                  )}
+                  {article.implication ? (
                     <p className="text-[13px] leading-relaxed">{article.implication}</p>
-                    <p className="mt-2 text-[10.5px] opacity-75">
-                      Derived from rules-based classification &middot; confidence{" "}
-                      {article.confidence}%
+                  ) : (
+                    <p className="text-[13px] leading-relaxed opacity-80">
+                      {implicationBusy
+                        ? "Asking the local model…"
+                        : "No line yet. Ask the local model, or the tags may be too thin."}
                     </p>
-                  </section>
-                )}
+                  )}
+                  <p className="mt-2 text-[10.5px] opacity-75">
+                    {isLlmImplicationSource(article.implicationSource)
+                      ? implicationSourceLabel(article.implicationSource)
+                      : `Derived from rules-based classification \u00b7 confidence ${article.confidence}%`}
+                  </p>
+                </section>
 
                 {article.summary && article.summary !== article.analysis && (
                   <section className="space-y-1.5">
@@ -293,4 +353,10 @@ export function DetailSheet({
       </div>
     </div>
   );
+}
+
+function implicationSourceLabel(source: string | null): string {
+  if (!source || source === "rules") return "Local LLM";
+  const model = source.includes(":") ? source.slice(source.indexOf(":") + 1) : source;
+  return model ? `Local LLM \u00b7 ${model}` : "Local LLM";
 }

@@ -1,9 +1,7 @@
 /**
  * Prints every URL the dashboard is reachable on from this machine.
  *
- * The laptop's DHCP address changes whenever it joins a different network, so
- * a hardcoded URL goes stale. Run this to get the current one, and prefer the
- * overlay address (Tailscale) if you want a URL that survives moving networks.
+ * DHCP addresses change between networks, so a hardcoded URL goes stale.
  */
 import { networkInterfaces } from "node:os";
 
@@ -15,9 +13,9 @@ type Entry = { label: string; host: string; note: string };
 function classify(iface: string, address: string): Entry | null {
   if (address.startsWith("127.") || address.startsWith("169.254.")) return null;
 
-  const isTailscale = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address);
-  if (isTailscale) {
-    return { label: iface, host: address, note: "stable across networks" };
+  const isCgnat = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address);
+  if (isCgnat) {
+    return { label: iface, host: address, note: "overlay / CGNAT" };
   }
 
   const isPrivate =
@@ -30,7 +28,7 @@ function classify(iface: string, address: string): Entry | null {
   return {
     label: iface,
     host: address,
-    note: isOverlay ? "overlay network" : "same Wi-Fi/LAN only",
+    note: isOverlay ? "overlay network" : "same LAN only",
   };
 }
 

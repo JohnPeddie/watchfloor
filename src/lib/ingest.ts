@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { FEEDS } from "../../config/feeds";
+import { FEEDS, ingestCap } from "../../config/feeds";
 import { prisma } from "./db";
 import { geocodeText } from "./geocode";
 import { classify } from "./classify";
@@ -9,6 +9,8 @@ import { deriveImplication, summariseExtractive } from "./analysis";
 import { exclusive } from "./jobs";
 import { recordRun } from "./run-log";
 import { pruneOldestArticles } from "./retention";
+import { loadSettings } from "./settings";
+import { isLlmImplicationSource } from "./serializers";
 
 const parser = new Parser({
   timeout: 15000,
@@ -102,7 +104,7 @@ async function runIngestInner(options?: {
     try {
       const parsed = await parser.parseURL(feed.url);
       result.feedsProcessed += 1;
-      const items = (parsed.items ?? []).slice(0, maxPerFeed);
+      const items = (parsed.items ?? []).slice(0, ingestCap(feed, maxPerFeed));
 
       for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
         const item = items[itemIndex];
@@ -168,12 +170,20 @@ async function runIngestInner(options?: {
         result.enriched += 1;
       }
 
-      // Article analysis is always the offline rules engine: extractive
-      // sentences plus tag-driven implications. The LLM is reserved for
-      // writing daily brief items from clustered reports.
+      // Extractive analysis stays on the rules engine. A hand-asked LLM
+      // why-it-matters line is kept across later collects.
+      const keepLlmImplication =
+        isLlmImplicationSource(existing?.implicationSource) && Boolean(existing?.implication);
       const analysisFields = {
         analysis: summariseExtractive(bodyText, rawExcerpt || null),
-        implication: deriveImplication(classification.tags, place?.label ?? null),
+        implication:
+          keepLlmImplication && existing?.implication
+            ? existing.implication
+            : deriveImplication(classification.tags, place?.label ?? null),
+        implicationSource:
+          keepLlmImplication && existing?.implicationSource
+            ? existing.implicationSource
+            : "rules",
         analysisSource: "rules",
         analysedAt: new Date(),
       };
@@ -213,7 +223,8 @@ async function runIngestInner(options?: {
     }
   });
 
-  await pruneOldestArticles();
+  const settings = await loadSettings();
+  await pruneOldestArticles(settings.holdingsMax);
 
   await prisma.meta.upsert({
     where: { key: "lastIngestAt" },

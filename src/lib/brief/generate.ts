@@ -2,7 +2,7 @@ import { prisma } from "../db";
 import type { Precedence, Tag } from "../classify";
 import { exclusive } from "../jobs";
 import { recordRun } from "../run-log";
-import { markBriefRan } from "../settings";
+import { loadSettings, markBriefRan } from "../settings";
 import { resolveProvider } from "../summarize";
 import type { StoryCluster, StoryDraft } from "../summarize/types";
 import {
@@ -97,7 +97,7 @@ export async function loadCandidates(
   const rows = await prisma.article.findMany({
     where: { publishedAt: { gte: start, lte: end } },
     orderBy: { publishedAt: "desc" },
-    take: 300,
+    take: (await loadSettings()).holdingsMax,
   });
 
   return rows.map((row) => ({

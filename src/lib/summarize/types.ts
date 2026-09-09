@@ -76,6 +76,11 @@ export type SummaryProvider = {
   /** Optional day-level read across the finished stories. */
   writeBluf?: (stories: { headline: string; body: string }[]) => Promise<string | null>;
   /**
+   * One-article "why it matters" line, only when the operator asks.
+   * Not used on ingest — the stream stays rules-only.
+   */
+  writeImplication?: (input: ArticleInput) => Promise<string | null>;
+  /**
    * Drop host-side resources after a brief run. Ollama uses this to unload
    * the model from VRAM so the host is not sitting on a loaded model all day.
    */

@@ -22,6 +22,7 @@ model Article {
   bodyText    String?
   analysis    String?
   implication String?
+  implicationSource String?
   // Which summariser produced `analysis` — e.g. "rules" or "ollama:llama3.2".
   // Lets a later Ollama pass target only the rule-generated summaries.
   analysisSource String?

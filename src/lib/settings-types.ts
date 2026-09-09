@@ -8,7 +8,7 @@ export type WatchfloorSettings = {
   briefMinute: number;
   /** How many times to rebuild the brief each day, spaced evenly from briefHour:briefMinute. */
   briefTimesPerDay: number;
-  /** Which engine writes daily brief items. */
+  /** Which engine writes daily brief items and on-demand why-it-matters lines. */
   llmProvider: LlmProviderId;
   /**
    * Host for the selected LLM. IP, hostname, or URL.
@@ -17,6 +17,8 @@ export type WatchfloorSettings = {
   llmHost: string;
   /** Optional model id. Empty uses the host default / currently loaded model. */
   llmModel: string;
+  /** Max articles kept in the reporting stream. Oldest drop first. */
+  holdingsMax: number;
 };
 
 export const LLM_PROVIDERS: { id: LlmProviderId; label: string }[] = [
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: WatchfloorSettings = {
   llmProvider: "lmstudio",
   llmHost: "",
   llmModel: "",
+  holdingsMax: 300,
 };
 
 export function defaultSettings(): WatchfloorSettings {
@@ -58,6 +61,19 @@ export const BRIEF_FREQUENCIES: { times: number; label: string }[] = [
   { times: 12, label: "12 times a day (every 2 hours)" },
   { times: 24, label: "Every hour" },
 ];
+
+export const HOLDINGS_SIZES: { count: number; label: string }[] = [
+  { count: 150, label: "150 articles" },
+  { count: 200, label: "200 articles" },
+  { count: 300, label: "300 articles" },
+  { count: 400, label: "400 articles" },
+  { count: 500, label: "500 articles" },
+  { count: 750, label: "750 articles" },
+  { count: 1000, label: "1,000 articles" },
+];
+
+export const HOLDINGS_MIN = 150;
+export const HOLDINGS_MAX = 1000;
 
 export const INGEST_INTERVALS: { minutes: number; label: string }[] = [
   { minutes: 15, label: "Every 15 minutes" },
