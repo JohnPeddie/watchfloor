@@ -21,7 +21,7 @@ export type HazardsPayload = {
 /**
  * Approximate a filled disc on the globe for a warzone or storm radius.
  */
-export function hazardDisc(mark: HazardMark, steps = 36): {
+export function hazardDisc(mark: HazardMark, steps = 16): {
   type: "Feature";
   properties: Record<string, unknown>;
   geometry: { type: "Polygon"; coordinates: number[][][] };

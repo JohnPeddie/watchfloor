@@ -27,6 +27,8 @@ import type {
   SummarizerStatus,
 } from "@/lib/serializers";
 
+const EMPTY_GLOBE_LINKS: GlobeLink[] = [];
+
 const GlobeView = dynamic(
   () => import("@/components/GlobeView").then((m) => m.GlobeView),
   {
@@ -200,7 +202,7 @@ export function WatchfloorDashboard() {
     return [...storyPins, ...articlePins];
   }, [brief, articles, sourceWeb, selectedStory, isInner, view]);
 
-  const globeLinks: GlobeLink[] = sourceWeb?.links ?? [];
+  const globeLinks: GlobeLink[] = sourceWeb?.links ?? EMPTY_GLOBE_LINKS;
 
   const feedStatus = useMemo(() => {
     const counts = new Map<string, number>();
@@ -223,14 +225,13 @@ export function WatchfloorDashboard() {
 
   const reading = Boolean(selectedStory || selectedArticle);
 
-  function flyTo(
-    lat: number | null | undefined,
-    lng: number | null | undefined,
-    altitude = 1.5,
-  ) {
-    if (lat == null || lng == null) return;
-    setFocus({ lat, lng, altitude });
-  }
+  const flyTo = useCallback(
+    (lat: number | null | undefined, lng: number | null | undefined, altitude = 1.5) => {
+      if (lat == null || lng == null) return;
+      setFocus({ lat, lng, altitude });
+    },
+    [],
+  );
 
   function closeDetail() {
     setSelectedStory(null);
@@ -250,23 +251,29 @@ export function WatchfloorDashboard() {
     }
   }
 
-  function onSelectStory(story: BriefStoryDTO) {
-    setSelectedStory(story);
-    setSelectedArticle(null);
-    setView("brief");
-    setPane("brief");
-    const web = buildSourceWeb(story);
-    if (web.hub) flyTo(web.hub.lat, web.hub.lng, 2.35);
-    else flyTo(story.lat, story.lng, 2.35);
-  }
+  const onSelectStory = useCallback(
+    (story: BriefStoryDTO) => {
+      setSelectedStory(story);
+      setSelectedArticle(null);
+      setView("brief");
+      setPane("brief");
+      const web = buildSourceWeb(story);
+      if (web.hub) flyTo(web.hub.lat, web.hub.lng, 2.35);
+      else flyTo(story.lat, story.lng, 2.35);
+    },
+    [flyTo],
+  );
 
-  function onSelectArticle(article: ArticleDTO) {
-    setSelectedArticle(article);
-    setSelectedStory(null);
-    setView("articles");
-    setPane("articles");
-    flyTo(article.lat, article.lng);
-  }
+  const onSelectArticle = useCallback(
+    (article: ArticleDTO) => {
+      setSelectedArticle(article);
+      setSelectedStory(null);
+      setView("articles");
+      setPane("articles");
+      flyTo(article.lat, article.lng);
+    },
+    [flyTo],
+  );
 
   function patchArticleImplication(
     articleId: string,
@@ -284,17 +291,21 @@ export function WatchfloorDashboard() {
     );
   }
 
-  function onSelectPin(pin: GlobePin) {
-    if (pin.kind === "story") {
-      const story = brief?.stories.find((s) => s.id === pin.id.replace("story:", ""));
-      if (story) onSelectStory(story);
-      return;
-    }
-    const articleId = pin.articleId ?? pin.id.replace(/^article:/, "").replace(/^source:[^:]+:/, "");
-    const article =
-      articles.find((a) => a.id === articleId) ?? allArticles.find((a) => a.id === articleId);
-    if (article) onSelectArticle(article);
-  }
+  const onSelectPin = useCallback(
+    (pin: GlobePin) => {
+      if (pin.kind === "story") {
+        const story = brief?.stories.find((s) => s.id === pin.id.replace("story:", ""));
+        if (story) onSelectStory(story);
+        return;
+      }
+      const articleId =
+        pin.articleId ?? pin.id.replace(/^article:/, "").replace(/^source:[^:]+:/, "");
+      const article =
+        articles.find((a) => a.id === articleId) ?? allArticles.find((a) => a.id === articleId);
+      if (article) onSelectArticle(article);
+    },
+    [brief, articles, allArticles, onSelectStory, onSelectArticle],
+  );
 
   async function onIngest() {
     setIngesting(true);

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import * as THREE from "three";
-import { PRECEDENCE_STYLES } from "@/lib/classify";
+import { PRECEDENCE_STYLES, type Precedence } from "@/lib/classify";
 import { subsolarPoint } from "@/lib/solar";
 import { hazardDisc, type HazardMark, type HazardsPayload } from "@/lib/hazard-geometry";
 import type { GlobeLink, GlobePin } from "@/lib/serializers";
@@ -41,6 +41,17 @@ type CountryFeature = {
 };
 
 const UK_HOME = { lat: 54.5, lng: -3.0 };
+
+/** HTML photo markers are CSS2D — they are the main source of flick stutter. */
+const MAX_HTML_MARKERS = 12;
+/** GPU points are cheap; still cap so pointer picking stays light. */
+const MAX_POINTS = 96;
+const PRECEDENCE_RANK: Record<Precedence, number> = {
+  FLASH: 0,
+  IMMEDIATE: 1,
+  PRIORITY: 2,
+  ROUTINE: 3,
+};
 
 const VERTEX_SHADER = `
   varying vec3 vNormal;
@@ -101,7 +112,27 @@ const FRAGMENT_SHADER = `
   }
 `;
 
-export function GlobeView({
+function pinRank(pin: GlobePin, selectedId: string | null): number {
+  if (pin.focus || pin.id === selectedId) return -2;
+  if (pin.kind === "story") return PRECEDENCE_RANK[pin.precedence];
+  if (pin.kind === "source") return 4;
+  return 5 + PRECEDENCE_RANK[pin.precedence];
+}
+
+function takePins(pins: GlobePin[], selectedId: string | null, limit: number): GlobePin[] {
+  if (pins.length <= limit) return pins;
+  const ranked = [...pins].sort((a, b) => pinRank(a, selectedId) - pinRank(b, selectedId));
+  const picked = ranked.slice(0, limit);
+  if (selectedId && !picked.some((p) => p.id === selectedId)) {
+    const extra = pins.find((p) => p.id === selectedId);
+    if (extra) {
+      picked[picked.length - 1] = extra;
+    }
+  }
+  return picked;
+}
+
+export const GlobeView = memo(function GlobeView({
   pins,
   focus,
   selectedId,
@@ -114,9 +145,17 @@ export function GlobeView({
 }: GlobeViewProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onSelectPinRef = useRef(onSelectPin);
+  const focusRef = useRef(focus);
+  const busyRef = useRef(false);
+  const detachControls = useRef<(() => void) | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [sunLabel, setSunLabel] = useState<string>("");
+  const [interacting, setInteracting] = useState(false);
+
+  onSelectPinRef.current = onSelectPin;
+  focusRef.current = focus;
 
   const material = useMemo(() => {
     if (typeof window === "undefined") return undefined;
@@ -125,8 +164,9 @@ export function GlobeView({
     const nightTexture = loader.load("/globe/earth-night-hi.jpg");
     for (const texture of [dayTexture, nightTexture]) {
       texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = 8;
+      texture.anisotropy = 4;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.generateMipmaps = true;
     }
 
     return new THREE.ShaderMaterial({
@@ -182,20 +222,18 @@ export function GlobeView({
     [showBoundaries, countries, hazardMarks],
   );
 
-  const imagePins = useMemo(
-    () =>
-      links.length > 0
-        ? []
-        : showImagery
-          ? pins.filter((p) => Boolean(p.imageUrl))
-          : [],
-    [pins, showImagery, links.length],
+  const plottedPins = useMemo(
+    () => takePins(pins, selectedId, MAX_POINTS),
+    [pins, selectedId],
   );
 
+  const imagePins = useMemo(() => {
+    if (interacting || links.length > 0 || !showImagery) return [];
+    return plottedPins.filter((p) => Boolean(p.imageUrl)).slice(0, MAX_HTML_MARKERS);
+  }, [plottedPins, showImagery, links.length, interacting]);
+
   const points = useMemo(() => {
-    const articlePoints = pins
-      .filter((p) => links.length > 0 || !showImagery || !p.imageUrl)
-      .map((p) => ({
+    const articlePoints = plottedPins.map((p) => ({
         ...p,
         radius: p.focus ? 0.7 : p.kind === "source" ? 0.32 : p.kind === "story" ? 0.4 : 0.22,
         color: p.focus
@@ -212,11 +250,11 @@ export function GlobeView({
       color: stormColor(mark),
     }));
     return [...overlayPoints, ...articlePoints];
-  }, [pins, selectedId, showImagery, links.length, hazardMarks]);
+  }, [plottedPins, selectedId, hazardMarks]);
 
   /**
-   * A selected story's source web replaces the ambient home arcs. Dashes
-   * travel from each source toward the hub — reporting arriving at the event.
+   * A selected story's source web replaces the ambient home arcs. Dashes stay
+   * static so the fragment shader is not animating every frame.
    */
   const arcs = useMemo<ArcDatum[]>(() => {
     if (links.length > 0) {
@@ -229,13 +267,14 @@ export function GlobeView({
         stroke: 0.55,
         dashLength: 0.7,
         dashGap: 0.18,
-        dashAnimateTime: 2800,
+        dashAnimateTime: 0,
         altitudeScale: 0.38,
       }));
     }
 
-    return pins
-      .filter((p) => p.kind === "story")
+    return plottedPins
+      .filter((p) => p.kind === "story" && (p.precedence === "FLASH" || p.precedence === "IMMEDIATE"))
+      .slice(0, 8)
       .map((p) => ({
         startLat: UK_HOME.lat,
         startLng: UK_HOME.lng,
@@ -248,24 +287,18 @@ export function GlobeView({
         stroke: 0.3,
         dashLength: 0.45,
         dashGap: 0.22,
-        dashAnimateTime: 5000,
+        dashAnimateTime: 0,
         altitudeScale: 0.4,
       }));
-  }, [pins, links]);
+  }, [plottedPins, links]);
 
-  const rings = useMemo(
-    () => [
-      ...pins
-        .filter((p) => p.focus || p.precedence === "FLASH" || p.id === selectedId)
-        .map((p) => ({ lat: p.lat, lng: p.lng, color: "255,183,124" })),
-      ...hazardMarks.map((mark) => ({
-        lat: mark.lat,
-        lng: mark.lng,
-        color: mark.kind === "warzone" ? "255,70,60" : mark.severity === "extreme" ? "196,120,255" : "255,176,64",
-      })),
-    ],
-    [pins, selectedId, hazardMarks],
-  );
+  const rings = useMemo(() => {
+    if (interacting) return [];
+    const selected = plottedPins.filter((p) => p.focus || p.id === selectedId);
+    return selected.map((p) => ({ lat: p.lat, lng: p.lng, color: "255,183,124" }));
+  }, [plottedPins, selectedId, interacting]);
+
+  const labels = interacting ? [] : hazardMarks;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -303,6 +336,94 @@ export function GlobeView({
     if (!g || !focus) return;
     g.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: focus.altitude ?? 1.5 }, 1300);
   }, [focus]);
+
+  useEffect(() => () => detachControls.current?.(), []);
+
+  const attachGlobe = useCallback((globe: GlobeMethods) => {
+    detachControls.current?.();
+    globeRef.current = globe;
+
+    const renderer = globe.renderer();
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    renderer.setPixelRatio(Math.min(dpr, 1.25));
+
+    const controls = globe.controls();
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.16;
+    controls.autoRotate = !focusRef.current;
+    controls.autoRotateSpeed = 0.25;
+
+    let dragging = false;
+    let settle = 0;
+    const markBusy = () => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setInteracting(true);
+    };
+    const markIdleSoon = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        busyRef.current = false;
+        setInteracting(false);
+      }, 220);
+    };
+    const onStart = () => {
+      dragging = true;
+      window.clearTimeout(settle);
+      markBusy();
+    };
+    const onEnd = () => {
+      dragging = false;
+      markIdleSoon();
+    };
+    const onChange = () => {
+      if (!dragging && busyRef.current) markIdleSoon();
+    };
+
+    controls.addEventListener("start", onStart);
+    controls.addEventListener("end", onEnd);
+    controls.addEventListener("change", onChange);
+
+    detachControls.current = () => {
+      window.clearTimeout(settle);
+      controls.removeEventListener("start", onStart);
+      controls.removeEventListener("end", onEnd);
+      controls.removeEventListener("change", onChange);
+    };
+  }, []);
+
+  const htmlElement = useCallback((d: object) => {
+    const pin = d as unknown as GlobePin;
+    const el = document.createElement("div");
+    el.className = "globe-marker";
+    el.style.borderColor = PRECEDENCE_STYLES[pin.precedence]?.fg ?? "#8a949b";
+    el.title = `${pin.placeLabel ?? ""} — ${pin.label}`;
+    const img = document.createElement("img");
+    img.src = pin.imageUrl ?? "";
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.draggable = false;
+    el.appendChild(img);
+    el.onclick = (event) => {
+      event.stopPropagation();
+      onSelectPinRef.current(pin);
+    };
+    return el;
+  }, []);
+
+  const onPointClick = useCallback((d: object) => {
+    if (isHazard(d)) return;
+    onSelectPinRef.current(d as unknown as GlobePin);
+  }, []);
+
+  const onZoom = useCallback(
+    ({ lng, lat }: { lng: number; lat: number }) => {
+      if (!material) return;
+      material.uniforms.globeRotation.value.set(lng, lat);
+    },
+    [material],
+  );
 
   return (
     <div
@@ -342,21 +463,28 @@ export function GlobeView({
           ref={globeRef}
           width={size.w}
           height={size.h}
+          animateIn={false}
+          rendererConfig={{
+            antialias: size.w < 1100,
+            alpha: true,
+            powerPreference: "high-performance",
+          }}
           backgroundColor="rgba(0,0,0,0)"
           globeMaterial={material}
-          bumpImageUrl="/globe/earth-topology.png"
           showGraticules={false}
           atmosphereColor="#8fbfd6"
-          atmosphereAltitude={0.17}
-          onZoom={({ lng, lat }) => {
-            if (!material) return;
-            material.uniforms.globeRotation.value.set(lng, lat);
+          atmosphereAltitude={0.14}
+          onGlobeReady={() => {
+            const g = globeRef.current;
+            if (g) attachGlobe(g);
           }}
+          onZoom={onZoom}
           polygonsData={polygons}
-          polygonCapColor={(d) => polygonFill(d)}
-          polygonSideColor={() => "rgba(0, 0, 0, 0)"}
-          polygonStrokeColor={(d) => polygonStroke(d)}
-          polygonAltitude={(d) => (featureLayer(d) ? 0.008 : 0.005)}
+          polygonCapColor={polygonFill}
+          polygonSideColor={polygonSide}
+          polygonStrokeColor={polygonStroke}
+          polygonAltitude={polygonAltitude}
+          polygonCapCurvatureResolution={3}
           polygonsTransitionDuration={0}
           pointsData={points}
           pointLat="lat"
@@ -364,41 +492,26 @@ export function GlobeView({
           pointAltitude={0.02}
           pointRadius="radius"
           pointColor="color"
-          pointLabel={(d) => tooltip(d)}
-          onPointClick={(d) => {
-            if (isHazard(d)) return;
-            onSelectPin(d as unknown as GlobePin);
-          }}
-          labelsData={hazardMarks}
+          pointResolution={8}
+          pointLabel={tooltip}
+          pointsTransitionDuration={0}
+          onPointClick={onPointClick}
+          labelsData={labels}
           labelLat="lat"
           labelLng="lng"
           labelText="label"
           labelSize={1.05}
           labelDotRadius={0}
           labelAltitude={0.02}
-          labelColor={(d) => stormColor(d as HazardMark)}
-          labelResolution={2}
+          labelColor={labelColor}
+          labelResolution={1}
+          labelsTransitionDuration={0}
           htmlElementsData={imagePins}
           htmlLat="lat"
           htmlLng="lng"
           htmlAltitude={0.03}
-          htmlElement={(d) => {
-            const pin = d as unknown as GlobePin;
-            const el = document.createElement("div");
-            el.className = "globe-marker";
-            el.style.borderColor =
-              pin.id === selectedId
-                ? "#ffb77c"
-                : (PRECEDENCE_STYLES[pin.precedence]?.fg ?? "#8a949b");
-            el.title = `${pin.placeLabel ?? ""} — ${pin.label}`;
-            const img = document.createElement("img");
-            img.src = pin.imageUrl ?? "";
-            img.alt = "";
-            img.loading = "lazy";
-            el.appendChild(img);
-            el.onclick = () => onSelectPin(pin);
-            return el;
-          }}
+          htmlTransitionDuration={0}
+          htmlElement={htmlElement}
           arcsData={arcs}
           arcStartLat="startLat"
           arcStartLng="startLng"
@@ -410,21 +523,39 @@ export function GlobeView({
           arcDashLength="dashLength"
           arcDashGap="dashGap"
           arcDashAnimateTime="dashAnimateTime"
+          arcCurveResolution={32}
           arcsTransitionDuration={0}
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"
-          ringColor={(d: { color?: string }) => (t: number) => {
-            const rgb = d.color ?? "255,183,124";
-            return `rgba(${rgb},${(1 - t) * 0.9})`;
-          }}
+          ringColor={ringColor}
           ringMaxRadius={3}
           ringPropagationSpeed={1.4}
           ringRepeatPeriod={1700}
+          ringsTransitionDuration={0}
         />
       )}
     </div>
   );
+});
+
+function polygonSide() {
+  return "rgba(0, 0, 0, 0)";
+}
+
+function polygonAltitude(d: object) {
+  return featureLayer(d) ? 0.008 : 0.005;
+}
+
+function labelColor(d: object) {
+  return stormColor(d as HazardMark);
+}
+
+function ringColor(d: { color?: string }) {
+  return (t: number) => {
+    const rgb = d.color ?? "255,183,124";
+    return `rgba(${rgb},${(1 - t) * 0.9})`;
+  };
 }
 
 function isHazard(value: unknown): value is HazardMark {
@@ -444,7 +575,7 @@ function featureLayer(value: unknown): string | null {
   return typeof layer === "string" ? layer : null;
 }
 
-function polygonFill(value: unknown): string {
+function polygonFill(value: object): string {
   const layer = featureLayer(value);
   const severity = (value as CountryFeature)?.properties?.severity;
   if (layer === "warzone") return "rgba(255, 48, 42, 0.32)";
@@ -454,7 +585,7 @@ function polygonFill(value: unknown): string {
   return "rgba(0, 0, 0, 0)";
 }
 
-function polygonStroke(value: unknown): string {
+function polygonStroke(value: object): string {
   const layer = featureLayer(value);
   if (layer === "warzone") return "rgba(255, 80, 70, 0.95)";
   if (layer === "storm") {
@@ -464,7 +595,7 @@ function polygonStroke(value: unknown): string {
   return "rgba(190, 214, 228, 0.42)";
 }
 
-function tooltip(datum: unknown) {
+function tooltip(datum: object) {
   if (isHazard(datum)) {
     const accent = stormColor(datum);
     const kind = datum.kind === "warzone" ? "Warzone" : "Storm";

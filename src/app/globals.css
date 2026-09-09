@@ -663,7 +663,7 @@ body {
   box-shadow: var(--elev-3);
   cursor: pointer;
   background: var(--md-container);
-  transition: transform 140ms ease;
+  contain: layout style paint;
 }
 .globe-marker:hover {
   transform: scale(1.35);
