@@ -75,4 +75,9 @@ export type SummaryProvider = {
   composeStory: (cluster: StoryCluster) => Promise<{ headline: string; body: string }>;
   /** Optional day-level read across the finished stories. */
   writeBluf?: (stories: { headline: string; body: string }[]) => Promise<string | null>;
+  /**
+   * Drop host-side resources after a brief run. Ollama uses this to unload
+   * the model from VRAM so the host is not sitting on a loaded model all day.
+   */
+  release?: () => Promise<void>;
 };

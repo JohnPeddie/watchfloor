@@ -1,5 +1,6 @@
 import type { ProviderHealth } from "./types";
 import { createChatProvider, timeoutMs } from "./chat";
+import { loadLlmRuntime } from "./runtime-config";
 import { recordRun } from "../run-log";
 
 /**
@@ -11,15 +12,14 @@ import { recordRun } from "../run-log";
  * is loaded.
  */
 
-const DEFAULT_BASE = "http://127.0.0.1:1234/v1";
-
-function baseUrl(): string {
-  const raw = (process.env.OPENAI_BASE_URL ?? DEFAULT_BASE).replace(/\/+$/, "");
-  return raw.endsWith("/v1") ? raw : `${raw}/v1`;
+async function baseUrl(): Promise<string> {
+  const runtime = await loadLlmRuntime();
+  return runtime.openaiBaseUrl;
 }
 
-function configuredModel(): string {
-  return (process.env.OPENAI_MODEL ?? "").trim();
+async function configuredModel(): Promise<string> {
+  const runtime = await loadLlmRuntime();
+  return runtime.openaiModel;
 }
 
 function apiKey(): string {
@@ -29,8 +29,8 @@ function apiKey(): string {
 /** Last id seen on /v1/models, used when OPENAI_MODEL is left blank. */
 let loadedModel: string | null = null;
 
-function activeModel(): string | null {
-  return configuredModel() || loadedModel;
+async function activeModel(): Promise<string | null> {
+  return (await configuredModel()) || loadedModel;
 }
 
 function modelMatches(available: string[], wanted: string): boolean {
@@ -41,8 +41,7 @@ function modelMatches(available: string[], wanted: string): boolean {
   });
 }
 
-function resolvedModelId(available: string[]): string | null {
-  const wanted = configuredModel();
+function resolvedModelId(available: string[], wanted: string): string | null {
   if (!wanted) return available[0] ?? null;
   const exact = available.find((n) => n === wanted);
   if (exact) return exact;
@@ -73,10 +72,11 @@ function contentText(content: unknown): string {
 }
 
 async function callChat(prompt: string, system: string, attempt = 0, startedAt = Date.now()): Promise<string> {
-  const model = activeModel();
+  const model = await activeModel();
   if (!model) {
     throw new Error("No model loaded on the OpenAI-compatible host");
   }
+  const root = await baseUrl();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs());
@@ -96,7 +96,7 @@ async function callChat(prompt: string, system: string, attempt = 0, startedAt =
   };
 
   try {
-    const res = await fetch(`${baseUrl()}/chat/completions`, {
+    const res = await fetch(`${root}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -163,7 +163,9 @@ async function callChat(prompt: string, system: string, attempt = 0, startedAt =
 
 async function health(): Promise<ProviderHealth> {
   const started = Date.now();
-  const model = configuredModel() || loadedModel;
+  const wanted = await configuredModel();
+  const root = await baseUrl();
+  const model = wanted || loadedModel;
   const base: Omit<ProviderHealth, "reachable" | "detail" | "latencyMs"> = {
     id: "openai",
     label: "LM Studio",
@@ -173,7 +175,7 @@ async function health(): Promise<ProviderHealth> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    const res = await fetch(`${baseUrl()}/models`, {
+    const res = await fetch(`${root}/models`, {
       headers: { Authorization: `Bearer ${apiKey()}` },
       signal: controller.signal,
     });
@@ -190,19 +192,18 @@ async function health(): Promise<ProviderHealth> {
     const installed = (data.data ?? []).map((row) => row.id ?? "").filter(Boolean);
     loadedModel = installed[0] ?? null;
 
-    const wanted = configuredModel();
     if (installed.length === 0) {
       return {
         ...base,
         model: wanted || null,
         reachable: false,
-        detail: `No model loaded at ${baseUrl()}. Start the server in LM Studio and load Qwen.`,
+        detail: `No model loaded at ${root}. Start the server in LM Studio and load a model.`,
         latencyMs: Date.now() - started,
       };
     }
 
     const present = !wanted || modelMatches(installed, wanted);
-    const resolved = resolvedModelId(installed);
+    const resolved = resolvedModelId(installed, wanted);
     if (present && resolved) loadedModel = resolved;
 
     return {
@@ -230,7 +231,7 @@ async function health(): Promise<ProviderHealth> {
 export const openaiProvider = createChatProvider({
   id: "openai",
   label: "LM Studio",
-  getModel: activeModel,
+  getModel: () => loadedModel,
   health,
   complete: callChat,
 });

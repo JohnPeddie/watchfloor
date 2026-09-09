@@ -42,7 +42,7 @@ export async function loadOpsSnapshot(): Promise<OpsSnapshot> {
       prisma.runLog.findMany({
         where: { kind: "brief", startedAt: { gte: startOfToday() } },
         orderBy: { startedAt: "desc" },
-        take: 8,
+        take: 48,
       }),
       prisma.runLog.findMany({
         where: { kind: "llm", startedAt: { gte: startOfToday() } },
@@ -51,7 +51,7 @@ export async function loadOpsSnapshot(): Promise<OpsSnapshot> {
     ]);
 
   const lastIngestAt = lastIngestRow?.value ? new Date(lastIngestRow.value) : null;
-  const configured = configuredProviderId();
+  const configured = await configuredProviderId();
   const llm = pickLlmHost(llmHealth, configured);
 
   const sum = (rows: typeof llmLogs, key: "promptTokens" | "completionTokens" | "totalTokens" | "durationMs") =>

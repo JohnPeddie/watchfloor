@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * engine instead of the LLM host.
  */
 export async function GET() {
-  const configured = configuredProviderId();
+  const configured = await configuredProviderId();
   const providers = await allProviderHealth();
   const active = providers.find((p) => p.id === configured);
 

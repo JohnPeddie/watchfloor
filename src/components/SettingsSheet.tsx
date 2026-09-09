@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { HelpButton } from "@/components/HelpButton";
 import type { OpsSnapshot } from "@/lib/serializers";
-import { DEFAULT_SETTINGS, INGEST_INTERVALS, type WatchfloorSettings } from "@/lib/settings-types";
+import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, INGEST_INTERVALS, LLM_PROVIDERS, defaultSettings, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
 import { hostLabel, humanizeModelName } from "@/lib/model-label";
 
 type SettingsSheetProps = {
@@ -51,12 +51,12 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (syncDraft = true) => {
     const res = await fetch("/api/stats");
     if (!res.ok) throw new Error(`Stats HTTP ${res.status}`);
     const data = (await res.json()) as OpsSnapshot;
     setSnapshot(data);
-    setDraft(data.settings);
+    if (syncDraft) setDraft({ ...defaultSettings(), ...data.settings });
   }, []);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       setError(err instanceof Error ? err.message : String(err));
     });
     const id = setInterval(() => {
-      void load().catch(() => undefined);
+      void load(false).catch(() => undefined);
     }, 15_000);
     return () => clearInterval(id);
   }, [open, load]);
@@ -91,7 +91,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       if (!res.ok) throw new Error(`Save HTTP ${res.status}`);
       setDraft(next);
       setSavedAt(Date.now());
-      await load();
+      await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -221,7 +221,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
             </div>
             <div className="space-y-3 px-3 pb-3">
               <label className="block">
-                <div className="md-label-sm mb-1">Run at (local morning)</div>
+                <div className="md-label-sm mb-1">Start at</div>
                 <input
                   type="time"
                   className="md-field"
@@ -235,6 +235,21 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                     });
                   }}
                 />
+              </label>
+              <label className="block">
+                <div className="md-label-sm mb-1">Times per day</div>
+                <select
+                  className="md-field"
+                  disabled={!draft.briefEnabled || saving}
+                  value={draft.briefTimesPerDay ?? 1}
+                  onChange={(event) => patch({ briefTimesPerDay: Number(event.target.value) })}
+                >
+                  {BRIEF_FREQUENCIES.map((option) => (
+                    <option key={option.times} value={option.times}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <StatGrid
                 items={[
@@ -275,10 +290,76 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   color: llm?.reachable ? "var(--md-on-secondary-container)" : "var(--md-on-surface-variant)",
                 }}
               >
-                {llm?.reachable ? "CONNECTED" : "OFFLINE"}
+                {draft.llmProvider === "rules" ? "RULES" : llm?.reachable ? "CONNECTED" : "OFFLINE"}
               </span>
             </div>
             <div className="space-y-3 px-3 pb-3">
+              <label className="block">
+                <div className="md-label-sm mb-1">Provider</div>
+                <select
+                  className="md-field"
+                  disabled={saving}
+                  value={draft.llmProvider ?? "lmstudio"}
+                  onChange={(event) => patch({ llmProvider: event.target.value as LlmProviderId })}
+                >
+                  {LLM_PROVIDERS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {draft.llmProvider !== "rules" && (
+                <>
+                  <label className="block">
+                    <div className="md-label-sm mb-1">Host IP or URL</div>
+                    <input
+                      type="text"
+                      className="md-field"
+                      disabled={saving}
+                      spellCheck={false}
+                      autoComplete="off"
+                      placeholder={
+                        draft.llmProvider === "ollama"
+                          ? "192.168.8.69 or host.docker.internal"
+                          : "192.168.8.60"
+                      }
+                      value={draft.llmHost ?? ""}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, llmHost: event.target.value }))}
+                      onBlur={() => {
+                        if (draft.llmHost !== (snapshot?.settings.llmHost ?? "")) {
+                          void save(draft);
+                        }
+                      }}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="md-label-sm mb-1">Model (optional)</div>
+                    <input
+                      type="text"
+                      className="md-field"
+                      disabled={saving}
+                      spellCheck={false}
+                      autoComplete="off"
+                      placeholder={draft.llmProvider === "ollama" ? "llama3.1:8b" : "Leave blank for the loaded model"}
+                      value={draft.llmModel ?? ""}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, llmModel: event.target.value }))}
+                      onBlur={() => {
+                        if (draft.llmModel !== (snapshot?.settings.llmModel ?? "")) {
+                          void save(draft);
+                        }
+                      }}
+                    />
+                  </label>
+                  <p className="md-label-sm leading-relaxed">
+                    {draft.llmProvider === "ollama"
+                      ? "Port defaults to 11434. If Watchfloor is in Docker and Ollama is on this server, use the server LAN IP or host.docker.internal — not 127.0.0.1. Ollama must listen on 0.0.0.0 (OLLAMA_HOST=0.0.0.0:11434)."
+                      : "Port defaults to 1234. Point this at the machine running LM Studio."}
+                  </p>
+                </>
+              )}
+
               <p className="md-body text-[12px] leading-relaxed">
                 {llm?.label
                   ? `${llm.label}${
@@ -289,7 +370,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   : "No local model host configured"}
                 {llm?.probeMs != null ? ` · probe ${fmtDuration(llm.probeMs)}` : ""}
               </p>
-              {llm?.detail && !llm.reachable && (
+              {llm?.detail && !llm.reachable && draft.llmProvider !== "rules" && (
                 <p className="md-label-sm" style={{ color: "var(--md-error)" }}>
                   {llm.detail}
                 </p>
@@ -308,8 +389,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
           </section>
 
           <p className="md-label-sm px-1 pb-2">
-            Schedules run while the Watchfloor server is up. They pause if you stop{" "}
-            <span className="md-mono">npm run dev</span>.
+            Schedules run while Watchfloor is up.
             {savedAt ? " · Saved." : ""}
           </p>
         </div>

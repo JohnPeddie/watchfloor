@@ -63,6 +63,6 @@ export const HELP: Record<string, HelpTopic> = {
   settings: {
     title: "Settings",
     body:
-      "Periodic news refresh pulls the RSS feeds on the interval you set. The daily briefing runs once after the chosen morning time — 06:00 by default — and catches up if the server was off at that hour. Both only run while Watchfloor itself is running. The stats are today's figures for this machine: articles collected, LLM tokens, and how long the local model took. On a phone, tap the fullscreen control in the top bar to hide the address bar. Chrome only drops the bar permanently (Install app) when the page is opened over HTTPS, such as a Tailscale link — Add to Home screen on plain HTTP is just a bookmark.",
+      "Periodic news refresh pulls the RSS feeds on the interval you set. The briefing starts at the time you choose — 06:00 by default — and repeats that many times per day, evenly spaced (four times means every six hours from the start). It catches up if the server was off at a slot. The Local LLM section chooses Ollama or LM Studio and the host IP; leave the host blank to keep the environment default. If the model is down, briefs fall back to rules. Both schedules only run while Watchfloor itself is running. Chrome only drops the address bar permanently (Install app) when the page is opened over HTTPS, such as a Tailscale link — Add to Home screen on plain HTTP is a bookmark.",
   },
 };

@@ -160,6 +160,44 @@ async function generateBriefInner(options: GenerateOptions = {}): Promise<Genera
     );
   }
 
+  try {
+    return await generateBriefWithProvider(options, {
+      startedAt,
+      date,
+      ceiling,
+      startSources,
+      startWindow,
+      provider,
+      health,
+      fellBack,
+      requestedId,
+    });
+  } finally {
+    // Ollama unloads here so VRAM is free between scheduled briefs.
+    try {
+      await provider.release?.();
+    } catch {
+      // Best-effort: a down host is already not holding a loaded model.
+    }
+  }
+}
+
+async function generateBriefWithProvider(
+  options: GenerateOptions,
+  ctx: {
+    startedAt: Date;
+    date: string;
+    ceiling: number;
+    startSources: number;
+    startWindow: number;
+    provider: Awaited<ReturnType<typeof resolveProvider>>["provider"];
+    health: Awaited<ReturnType<typeof resolveProvider>>["health"];
+    fellBack: boolean;
+    requestedId: string;
+  },
+): Promise<GenerateResult> {
+  const { startedAt, date, ceiling, startSources, startWindow, provider, health, fellBack, requestedId } =
+    ctx;
   const steps = relaxationLadder(startSources);
   const strictStep = steps[0]!;
   let windowHours = startWindow;

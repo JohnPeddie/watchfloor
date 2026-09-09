@@ -447,7 +447,9 @@ export function WatchfloorDashboard() {
             width: readingThisView ? "min(60%, 560px)" : "min(52%, 440px)",
           }}
         >
-          <StackSlot grow={1}>{readingThisView ? reader : list}</StackSlot>
+          <StackSlot grow={1}>
+            <KeepScrollSwap showFirst={!readingThisView} first={list} second={reader} />
+          </StackSlot>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <StackSlot grow={1}>{mapPane}</StackSlot>
@@ -461,7 +463,9 @@ export function WatchfloorDashboard() {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <StackSlot grow={1.35}>{mapPane}</StackSlot>
-        <StackSlot grow={1}>{reading ? reader : trafficPane}</StackSlot>
+        <StackSlot grow={1}>
+          <KeepScrollSwap showFirst={!reading} first={trafficPane} second={reader} />
+        </StackSlot>
       </div>
     );
   }
@@ -477,7 +481,13 @@ export function WatchfloorDashboard() {
   if (floor === "cover") {
     const coverReading = reading && (pane === "brief" || pane === "articles");
     layout = (
-      <div className="min-h-0 flex-1">{coverReading ? reader : panesById[pane]}</div>
+      <div className="relative min-h-0 flex-1">
+        <KeepScrollSwap
+          showFirst={!coverReading}
+          first={panesById[pane]}
+          second={reader}
+        />
+      </div>
     );
   } else if (floor === "inner") {
     layout =
@@ -583,11 +593,9 @@ export function WatchfloorDashboard() {
           className="md-icon-btn"
           style={{
             position: "fixed",
-            left: isDesktop
-              ? 96
-              : "max(12px, env(safe-area-inset-left))",
+            left: "max(12px, env(safe-area-inset-left))",
             bottom: isCompact
-              ? "calc(env(safe-area-inset-bottom) + 64px)"
+              ? "calc(12px + 3.5rem + env(safe-area-inset-bottom))"
               : "max(12px, env(safe-area-inset-bottom))",
             zIndex: 80,
             width: 40,
@@ -613,6 +621,37 @@ function StackSlot({ children, grow }: { children: ReactNode; grow: number }) {
   return (
     <div className="relative min-h-0 overflow-hidden" style={{ flex: `${grow} 1 0%` }}>
       <div className="absolute inset-0">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Swaps to a reader without unmounting the list, so overflow-y scroll position
+ * is still there when the item is closed.
+ */
+function KeepScrollSwap({
+  showFirst,
+  first,
+  second,
+}: {
+  showFirst: boolean;
+  first: ReactNode;
+  second: ReactNode;
+}) {
+  return (
+    <div className="relative h-full min-h-0">
+      <div
+        className="h-full min-h-0"
+        style={
+          showFirst
+            ? undefined
+            : { position: "absolute", inset: 0, visibility: "hidden", pointerEvents: "none" }
+        }
+        aria-hidden={!showFirst}
+      >
+        {first}
+      </div>
+      {!showFirst && <div className="absolute inset-0">{second}</div>}
     </div>
   );
 }

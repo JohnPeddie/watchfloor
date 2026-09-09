@@ -79,6 +79,7 @@ export function createChatProvider(opts: {
   getModel: () => string | null;
   health: () => Promise<ProviderHealth>;
   complete: ChatComplete;
+  release?: () => Promise<void>;
 }): SummaryProvider {
   return {
     id: opts.id,
@@ -87,6 +88,7 @@ export function createChatProvider(opts: {
       return opts.getModel();
     },
     health: opts.health,
+    release: opts.release,
 
     async summariseArticle(input: ArticleInput): Promise<ArticleSummary> {
       const source = (input.bodyText ?? input.summary ?? "").slice(0, contextChars());

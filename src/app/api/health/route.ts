@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { loadLlmRuntime } from "@/lib/summarize/runtime-config";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export async function GET() {
       ? Math.round((Date.now() - new Date(lastIngestAt).getTime()) / 60000)
       : null;
 
+    const runtime = await loadLlmRuntime();
+
     return NextResponse.json({
       status: "ok",
       uptimeSeconds: Math.round(process.uptime()),
@@ -43,11 +46,11 @@ export async function GET() {
           }
         : null,
       summarizer: {
-        configured: process.env.SUMMARIZER ?? "rules",
-        ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? null,
-        ollamaModel: process.env.OLLAMA_MODEL ?? null,
-        openaiBaseUrl: process.env.OPENAI_BASE_URL ?? null,
-        openaiModel: process.env.OPENAI_MODEL ?? null,
+        configured: runtime.choice,
+        ollamaBaseUrl: runtime.ollamaBaseUrl,
+        ollamaModel: runtime.ollamaModel || null,
+        openaiBaseUrl: runtime.openaiBaseUrl,
+        openaiModel: runtime.openaiModel || null,
       },
     });
   } catch (error) {

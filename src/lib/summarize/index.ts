@@ -1,6 +1,7 @@
 import { ollamaProvider } from "./ollama";
 import { openaiProvider } from "./openai";
 import { rulesProvider } from "./rules";
+import { loadLlmRuntime } from "./runtime-config";
 import type { ProviderHealth, SummaryProvider } from "./types";
 
 export type { ArticleInput, ArticleSummary, StoryCluster, StoryDraft, SummaryProvider } from "./types";
@@ -14,21 +15,13 @@ const PROVIDERS: Record<string, SummaryProvider> = {
   openai: openaiProvider,
 };
 
-const ALIASES: Record<string, string> = {
-  manual: "rules",
-  lmstudio: "openai",
-  "openai-compat": "openai",
-};
-
-/** Reads SUMMARIZER, defaulting to the always-available rules engine. */
-export function configuredProviderId(): string {
-  const raw = (process.env.SUMMARIZER ?? "rules").toLowerCase().trim();
-  if (raw === "") return "rules";
-  const mapped = ALIASES[raw] ?? raw;
-  return mapped in PROVIDERS ? mapped : "rules";
+/** Reads settings (falling back to SUMMARIZER) for which engine writes briefs. */
+export async function configuredProviderId(): Promise<string> {
+  const runtime = await loadLlmRuntime();
+  return runtime.providerId;
 }
 
-export function getProvider(id = configuredProviderId()): SummaryProvider {
+export function getProvider(id: string): SummaryProvider {
   return PROVIDERS[id] ?? rulesProvider;
 }
 
@@ -49,19 +42,20 @@ export type ResolvedProvider = {
  * what makes it safe to leave SUMMARIZER=openai (or ollama) set permanently.
  * The LLM is only used to compose daily brief items, not per-article summaries.
  */
-export async function resolveProvider(id = configuredProviderId()): Promise<ResolvedProvider> {
-  const requested = getProvider(id);
+export async function resolveProvider(id?: string): Promise<ResolvedProvider> {
+  const requestedId = id ?? (await configuredProviderId());
+  const requested = getProvider(requestedId);
   const health = await requested.health();
 
   if (health.reachable) {
-    return { provider: requested, health, fellBack: false, requestedId: id };
+    return { provider: requested, health, fellBack: false, requestedId };
   }
 
   return {
     provider: rulesProvider,
     health,
     fellBack: requested.id !== rulesProvider.id,
-    requestedId: id,
+    requestedId,
   };
 }
 
@@ -69,3 +63,4 @@ export async function resolveProvider(id = configuredProviderId()): Promise<Reso
 export async function allProviderHealth(): Promise<ProviderHealth[]> {
   return Promise.all(Object.values(PROVIDERS).map((p) => p.health()));
 }
+

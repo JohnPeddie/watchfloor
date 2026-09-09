@@ -1,5 +1,6 @@
 import type { ProviderHealth } from "./types";
 import { createChatProvider, timeoutMs } from "./chat";
+import { loadLlmRuntime } from "./runtime-config";
 import { recordRun } from "../run-log";
 
 /**
@@ -11,24 +12,38 @@ import { recordRun } from "../run-log";
  * to the rules provider when `health()` reports unreachable.
  */
 
-const DEFAULT_BASE = "http://127.0.0.1:11434";
-const DEFAULT_MODEL = "llama3.1:8b";
+let lastModel: string | null = null;
 
-function baseUrl(): string {
-  return (process.env.OLLAMA_BASE_URL ?? DEFAULT_BASE).replace(/\/+$/, "");
+/** Drops chain-of-thought wrappers some models still emit even with think:false. */
+function stripThinking(raw: string): string {
+  return raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<\|?think\|>[\s\S]*?<\|?\/think\|>/gi, "")
+    .trim();
 }
 
-function modelName(): string {
-  return process.env.OLLAMA_MODEL ?? DEFAULT_MODEL;
+async function baseUrl(): Promise<string> {
+  const runtime = await loadLlmRuntime();
+  return runtime.ollamaBaseUrl;
+}
+
+async function modelName(): Promise<string> {
+  const runtime = await loadLlmRuntime();
+  return runtime.ollamaModel;
 }
 
 async function callOllama(prompt: string, system: string, attempt = 0, startedAt = Date.now()): Promise<string> {
   const controller = new AbortController();
+  const model = (await modelName()) || lastModel;
+  const root = await baseUrl();
+  if (!model) {
+    throw new Error("No model pulled on the Ollama host");
+  }
+  lastModel = model;
   const timer = setTimeout(() => controller.abort(), timeoutMs());
-  const model = modelName();
 
   try {
-    const res = await fetch(`${baseUrl()}/api/generate`, {
+    const res = await fetch(`${root}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -38,6 +53,12 @@ async function callOllama(prompt: string, system: string, attempt = 0, startedAt
         system,
         stream: false,
         format: "json",
+        // Top-level, not inside options — Ollama ignores think in options and
+        // reasoning models then spend num_predict on a hidden chain of thought.
+        think: false,
+        // Stay loaded between story + BLUF calls in one brief; generateBrief
+        // then calls release() so the weights leave VRAM when the run ends.
+        keep_alive: "5m",
         options: {
           // Low temperature: this is reporting, not creative writing.
           temperature: 0.2,
@@ -53,6 +74,7 @@ async function callOllama(prompt: string, system: string, attempt = 0, startedAt
 
     const data = (await res.json()) as {
       response?: string;
+      thinking?: string;
       prompt_eval_count?: number;
       eval_count?: number;
     };
@@ -71,7 +93,7 @@ async function callOllama(prompt: string, system: string, attempt = 0, startedAt
       completionTokens: completionTokens ?? undefined,
       totalTokens: totalTokens ?? undefined,
     });
-    return data.response ?? "";
+    return stripThinking(data.response ?? "");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // One retry covers a model still loading into memory, which is common on
@@ -97,16 +119,18 @@ async function callOllama(prompt: string, system: string, attempt = 0, startedAt
 
 async function health(): Promise<ProviderHealth> {
   const started = Date.now();
+  const model = await modelName();
+  const root = await baseUrl();
   const base: Omit<ProviderHealth, "reachable" | "detail" | "latencyMs"> = {
     id: "ollama",
     label: "Ollama (local LLM)",
-    model: modelName(),
+    model,
   };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    const res = await fetch(`${baseUrl()}/api/tags`, { signal: controller.signal });
+    const res = await fetch(`${root}/api/tags`, { signal: controller.signal });
     if (!res.ok) {
       return {
         ...base,
@@ -118,18 +142,23 @@ async function health(): Promise<ProviderHealth> {
 
     const data = (await res.json()) as { models?: { name?: string }[] };
     const installed = (data.models ?? []).map((m) => m.name ?? "");
-    const wanted = modelName();
-    // Ollama reports "llama3.1:8b"; accept a bare family name as a match.
-    const present = installed.some((n) => n === wanted || n.split(":")[0] === wanted.split(":")[0]);
+    const wanted = model;
+    const present =
+      installed.length > 0 &&
+      (!wanted || installed.some((n) => n === wanted || n.split(":")[0] === wanted.split(":")[0]));
+    if (present) lastModel = (wanted && installed.find((n) => n === wanted || n.split(":")[0] === wanted.split(":")[0])) || installed[0] || lastModel;
 
     return {
       ...base,
+      model: lastModel,
       reachable: present,
       detail: present
         ? null
-        : `Model "${wanted}" not pulled on host. Available: ${
-            installed.length > 0 ? installed.join(", ") : "none"
-          }`,
+        : wanted
+          ? `Model "${wanted}" not pulled on host. Available: ${
+              installed.length > 0 ? installed.join(", ") : "none"
+            }`
+          : `No models pulled at ${root}.`,
       latencyMs: Date.now() - started,
     };
   } catch (error) {
@@ -137,9 +166,35 @@ async function health(): Promise<ProviderHealth> {
     return {
       ...base,
       reachable: false,
-      detail: `${baseUrl()} unreachable (${message})`,
+      detail: `Ollama is not reachable at ${root}. The dashboard still runs; daily briefs will use the rules engine until it is back.`,
       latencyMs: Date.now() - started,
     };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Unload the configured model immediately. keep_alive: 0 is Ollama's documented
+ * way to drop weights from memory without waiting out the idle timer.
+ */
+async function unloadOllamaModel(): Promise<void> {
+  const model = (await modelName()) || lastModel;
+  const root = await baseUrl();
+  if (!model) return;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    await fetch(`${root}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        keep_alive: 0,
+      }),
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -148,7 +203,8 @@ async function health(): Promise<ProviderHealth> {
 export const ollamaProvider = createChatProvider({
   id: "ollama",
   label: "Ollama (local LLM)",
-  getModel: modelName,
+  getModel: () => lastModel,
   health,
   complete: callOllama,
+  release: unloadOllamaModel,
 });

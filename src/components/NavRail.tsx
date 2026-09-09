@@ -34,7 +34,7 @@ export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
       style={{ width: 84, background: "var(--md-container-low)" }}
       aria-label="Intelligence lanes"
     >
-      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto">
+      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto pb-14">
         {RAIL_ITEMS.map((item) => {
           const active = (item.tag ?? null) === activeTag;
           const count = item.tag ? (counts[item.tag] ?? 0) : null;

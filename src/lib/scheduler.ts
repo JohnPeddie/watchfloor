@@ -45,7 +45,7 @@ async function tick(): Promise<void> {
       await runIngest({ fetchImages: true, maxPerFeed: 12 });
     }
     if (briefIsDue(settings, await loadLastBriefAt())) {
-      console.log("[scheduler] daily brief due");
+      console.log("[scheduler] brief due");
       await generateBrief();
     }
   } catch (error) {
@@ -69,5 +69,5 @@ export function startScheduler(): void {
   }, TICK_MS);
   if (typeof s.kick.unref === "function") s.kick.unref();
   if (typeof s.timer.unref === "function") s.timer.unref();
-  console.log("[scheduler] watching ingest interval and daily brief slot");
+  console.log("[scheduler] watching ingest interval and brief slots");
 }
