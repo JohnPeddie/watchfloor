@@ -532,7 +532,7 @@ export const GlobeView = memo(function GlobeView({
           ringMaxRadius={3}
           ringPropagationSpeed={1.4}
           ringRepeatPeriod={1700}
-          ringsTransitionDuration={0}
+          ringResolution={8}
         />
       )}
     </div>
