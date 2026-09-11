@@ -5,7 +5,7 @@ import { CitySearch } from "@/components/CitySearch";
 import { Icon } from "@/components/Icon";
 import { HelpButton } from "@/components/HelpButton";
 import type { OpsSnapshot } from "@/lib/serializers";
-import { DEFAULT_SETTINGS, BRIEF_FREQUENCIES, GLOBE_IMAGE_SIZES, HOLDINGS_SIZES, INGEST_INTERVALS, INSIGHT_CARDS, INSIGHT_CARD_IDS, LLM_PROVIDERS, defaultSettings, type InsightCardId, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
+import { DEFAULT_SETTINGS, BRIEF_TIMES_MAX, GLOBE_IMAGE_SIZES, HOLDINGS_SIZES, INGEST_INTERVALS, INSIGHT_CARDS, INSIGHT_CARD_IDS, LLM_PROVIDERS, defaultSettings, parseBriefTimes, type BriefClockTime, type InsightCardId, type LlmProviderId, type WatchfloorSettings } from "@/lib/settings-types";
 import { hostLabel, humanizeModelName } from "@/lib/model-label";
 
 type SettingsSheetProps = {
@@ -116,6 +116,47 @@ export function SettingsSheet({ open, onClose, onSaved }: SettingsSheetProps) {
     current.splice(index, 1);
     current.splice(target, 0, item);
     patch({ insightOrder: current });
+  }
+
+  function briefTimes(): BriefClockTime[] {
+    return draft.briefTimes?.length ? draft.briefTimes : DEFAULT_SETTINGS.briefTimes;
+  }
+
+  function setBriefTimes(next: BriefClockTime[]) {
+    patch({ briefTimes: parseBriefTimes({ briefTimes: next }) });
+  }
+
+  function setBriefTime(index: number, hour: number, minute: number) {
+    setBriefTimes(briefTimes().map((time, i) => (i === index ? { hour, minute } : time)));
+  }
+
+  function addBriefTime() {
+    const current = briefTimes();
+    if (current.length >= BRIEF_TIMES_MAX) return;
+    const used = new Set(current.map((time) => time.hour * 60 + time.minute));
+    const suggestions = [6 * 60, 12 * 60, 18 * 60, 8 * 60, 9 * 60, 17 * 60, 7 * 60, 15 * 60];
+    let pick = { hour: 12, minute: 0 };
+    for (const mins of suggestions) {
+      if (!used.has(mins)) {
+        pick = { hour: Math.floor(mins / 60), minute: mins % 60 };
+        break;
+      }
+    }
+    if (used.has(pick.hour * 60 + pick.minute)) {
+      for (let hour = 0; hour < 24; hour++) {
+        if (!used.has(hour * 60)) {
+          pick = { hour, minute: 0 };
+          break;
+        }
+      }
+    }
+    setBriefTimes([...current, pick]);
+  }
+
+  function removeBriefTime(index: number) {
+    const current = briefTimes();
+    if (current.length <= 1) return;
+    setBriefTimes(current.filter((_, i) => i !== index));
   }
 
   if (!open) return null;
@@ -353,37 +394,51 @@ export function SettingsSheet({ open, onClose, onSaved }: SettingsSheetProps) {
               />
             </div>
             <div className="space-y-3 px-3 pb-3">
-              <label className="block">
-                <div className="md-label-sm mb-1">Start at</div>
-                <input
-                  type="time"
-                  className="md-field"
-                  disabled={!draft.briefEnabled || saving}
-                  value={timeValue(draft.briefHour, draft.briefMinute)}
-                  onChange={(event) => {
-                    const [hour, minute] = event.target.value.split(":").map(Number);
-                    patch({
-                      briefHour: Number.isFinite(hour) ? hour : 6,
-                      briefMinute: Number.isFinite(minute) ? minute : 0,
-                    });
-                  }}
-                />
-              </label>
-              <label className="block">
-                <div className="md-label-sm mb-1">Times per day</div>
-                <select
-                  className="md-field"
-                  disabled={!draft.briefEnabled || saving}
-                  value={draft.briefTimesPerDay ?? 1}
-                  onChange={(event) => patch({ briefTimesPerDay: Number(event.target.value) })}
-                >
-                  {BRIEF_FREQUENCIES.map((option) => (
-                    <option key={option.times} value={option.times}>
-                      {option.label}
-                    </option>
+              <div>
+                <div className="md-label-sm mb-1">Times</div>
+                <div className="space-y-2">
+                  {briefTimes().map((time, index) => (
+                    <div key={`${time.hour}-${time.minute}-${index}`} className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        className="md-field min-w-0 flex-1"
+                        disabled={!draft.briefEnabled || saving}
+                        value={timeValue(time.hour, time.minute)}
+                        aria-label={`Briefing time ${index + 1}`}
+                        onChange={(event) => {
+                          const [hour, minute] = event.target.value.split(":").map(Number);
+                          setBriefTime(
+                            index,
+                            Number.isFinite(hour) ? hour : 6,
+                            Number.isFinite(minute) ? minute : 0,
+                          );
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="md-icon-btn shrink-0"
+                        style={{ width: 36, height: 36 }}
+                        disabled={!draft.briefEnabled || saving || briefTimes().length <= 1}
+                        aria-label={`Remove ${timeValue(time.hour, time.minute)}`}
+                        onClick={() => removeBriefTime(index)}
+                      >
+                        <Icon name="close" size={16} />
+                      </button>
+                    </div>
                   ))}
-                </select>
-              </label>
+                </div>
+                <button
+                  type="button"
+                  className="md-btn-text mt-2"
+                  disabled={!draft.briefEnabled || saving || briefTimes().length >= BRIEF_TIMES_MAX}
+                  onClick={addBriefTime}
+                >
+                  Add time
+                </button>
+                <p className="md-label-sm mt-2 leading-relaxed">
+                  Each time is a rebuild in {tz}. There is no midnight run unless you add 00:00.
+                </p>
+              </div>
               <StatGrid
                 items={[
                   { label: "Runs today", value: String(brief?.runsToday ?? "—") },

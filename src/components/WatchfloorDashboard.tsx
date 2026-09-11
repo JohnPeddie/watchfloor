@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { FEEDS } from "../../config/feeds";
 import { AppBar } from "@/components/AppBar";
 import { LaneChips, NavRail } from "@/components/NavRail";
@@ -21,6 +21,7 @@ import type { MarketQuote } from "@/lib/markets";
 import type { ThreatPayload } from "@/lib/threat-types";
 import type { WeatherPayload } from "@/lib/weather-types";
 import type { HazardsPayload } from "@/lib/hazard-geometry";
+import { patchFloorCache, readFloorCache } from "@/lib/floor-cache";
 import { buildSourceWeb } from "@/lib/source-web";
 import type {
   ArticleDTO,
@@ -78,6 +79,7 @@ export function WatchfloorDashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [globeImageMax, setGlobeImageMax] = useState(DEFAULT_SETTINGS.globeImageMax);
   const [insightOrder, setInsightOrder] = useState<InsightCardId[]>(DEFAULT_SETTINGS.insightOrder);
+  const [floorLoading, setFloorLoading] = useState(true);
   const floor = useFloorKind();
   const shortInner = useIsShortInner();
   const isCompact = floor === "cover";
@@ -102,28 +104,17 @@ export function WatchfloorDashboard() {
   }, [activeTag, query]);
 
   const loadBase = useCallback(async () => {
-    const [briefRes, allRes, marketsRes, summarizerRes, settingsRes] = await Promise.all([
-      fetch("/api/brief").then((r) => r.json()),
-      fetch("/api/articles").then((r) => r.json()),
-      fetch("/api/markets").then((r) => r.json()),
-      // Non-critical: a failed probe should not blank the dashboard.
-      fetch("/api/summarizer")
-        .then((r) => r.json())
-        .catch(() => null),
-      fetch("/api/settings")
-        .then((r) => r.json())
-        .catch(() => null),
-    ]);
-    setBrief(briefRes.brief ?? null);
-    setAllArticles(allRes.articles ?? []);
-    setMarkets(marketsRes.markets ?? []);
-    setSummarizer(summarizerRes ?? null);
-    if (typeof settingsRes?.settings?.globeImageMax === "number") {
-      setGlobeImageMax(settingsRes.settings.globeImageMax);
-    }
-    if (Array.isArray(settingsRes?.settings?.insightOrder)) {
-      setInsightOrder(settingsRes.settings.insightOrder);
-    }
+    const briefP = fetch("/api/brief").then((r) => r.json());
+    const articlesP = fetch("/api/articles").then((r) => r.json());
+    const marketsP = fetch("/api/markets").then((r) => r.json());
+    // Non-critical: a failed probe should not blank the dashboard.
+    const summarizerP = fetch("/api/summarizer")
+      .then((r) => r.json())
+      .catch(() => null);
+    const settingsP = fetch("/api/settings")
+      .then((r) => r.json())
+      .catch(() => null);
+
     void fetch("/api/threat")
       .then((r) => r.json())
       .then((threatRes) => {
@@ -148,9 +139,66 @@ export function WatchfloorDashboard() {
         }
       })
       .catch(() => undefined);
+
+    let nextBrief: BriefDTO | null = null;
+    try {
+      const briefRes = await briefP;
+      nextBrief = briefRes.brief ?? null;
+      setBrief(nextBrief);
+      patchFloorCache({ brief: nextBrief });
+    } catch {
+      // Keep whatever the local snapshot already showed.
+    } finally {
+      setFloorLoading(false);
+    }
+
+    try {
+      const [allRes, marketsRes, summarizerRes, settingsRes] = await Promise.all([
+        articlesP,
+        marketsP,
+        summarizerP,
+        settingsP,
+      ]);
+      const nextAll = allRes.articles ?? [];
+      setAllArticles(nextAll);
+      setMarkets(marketsRes.markets ?? []);
+      setSummarizer(summarizerRes ?? null);
+      if (typeof settingsRes?.settings?.globeImageMax === "number") {
+        setGlobeImageMax(settingsRes.settings.globeImageMax);
+      }
+      if (Array.isArray(settingsRes?.settings?.insightOrder)) {
+        setInsightOrder(settingsRes.settings.insightOrder);
+      }
+      patchFloorCache({
+        brief: nextBrief,
+        articles: nextAll,
+        allArticles: nextAll,
+        tagCounts: allRes.tagCounts ?? {},
+        precedenceCounts: allRes.precedenceCounts ?? {},
+        total: allRes.total ?? 0,
+        matched: allRes.matched ?? 0,
+        lastIngestAt: allRes.lastIngestAt ?? null,
+      });
+    } catch {
+      // Articles/markets/settings can fail independently of the brief.
+    }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const cached = readFloorCache();
+    if (cached) {
+      if (cached.brief) setBrief(cached.brief);
+      if (cached.articles.length) setArticles(cached.articles);
+      if (cached.allArticles.length) setAllArticles(cached.allArticles);
+      if (Object.keys(cached.tagCounts).length) setTagCounts(cached.tagCounts);
+      if (Object.keys(cached.precedenceCounts).length) {
+        setPrecedenceCounts(cached.precedenceCounts);
+      }
+      if (cached.total) setTotal(cached.total);
+      if (cached.matched) setMatched(cached.matched);
+      if (cached.lastIngestAt) setLastIngestAt(cached.lastIngestAt);
+      if (cached.brief) setFloorLoading(false);
+    }
     void loadBase();
   }, [loadBase]);
 
@@ -426,6 +474,7 @@ export function WatchfloorDashboard() {
       selectedStoryId={selectedStory?.id ?? null}
       onSelectStory={onSelectStory}
       rebuilding={rebuilding}
+      loading={floorLoading}
       onRebuild={onRebuildBrief}
     />
   );
@@ -546,7 +595,7 @@ export function WatchfloorDashboard() {
 
   function splitWithGlobe(list: ReactNode) {
     return (
-      <div className={`flex min-h-0 flex-1 ${denseChrome ? "gap-1.5" : "gap-2 sm:gap-3"}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 ${denseChrome ? "gap-1.5" : "gap-2 sm:gap-3"}`}>
         <div
           className="flex min-h-0 min-w-0 flex-col"
           style={{
@@ -588,7 +637,7 @@ export function WatchfloorDashboard() {
   if (floor === "cover") {
     const coverReading = reading && (pane === "brief" || pane === "articles");
     layout = (
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 min-w-0 w-full flex-1 overflow-hidden">
         <KeepScrollSwap
           showFirst={!coverReading}
           first={panesById[pane]}
@@ -599,7 +648,7 @@ export function WatchfloorDashboard() {
   } else if (floor === "inner") {
     layout =
       view === "markets" ? (
-        <div className="min-h-0 flex-1">{insightPane}</div>
+        <div className="min-h-0 min-w-0 flex-1">{insightPane}</div>
       ) : (
         splitWithGlobe(listPane)
       );
@@ -625,7 +674,7 @@ export function WatchfloorDashboard() {
 
   return (
     <div
-      className="flex h-dvh flex-col overflow-hidden"
+      className="flex h-dvh min-w-0 flex-col overflow-hidden"
       data-floor={floor === "laptop" ? "desktop" : floor}
       data-short={shortInner ? "true" : undefined}
     >
@@ -667,12 +716,12 @@ export function WatchfloorDashboard() {
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1">
         {isDesktop && (
           <NavRail activeTag={activeTag} onSelectTag={setActiveTag} counts={tagCounts} />
         )}
         <main
-          className={`flex min-h-0 flex-1 flex-col ${
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
             denseChrome ? "gap-1.5 p-1.5" : "gap-2 p-2 sm:gap-3 sm:p-3"
           }`}
           style={{
@@ -737,9 +786,9 @@ function KeepScrollSwap({
   second: ReactNode;
 }) {
   return (
-    <div className="relative h-full min-h-0">
+    <div className="relative h-full min-h-0 min-w-0 w-full overflow-hidden">
       <div
-        className="h-full min-h-0"
+        className="h-full min-h-0 min-w-0 w-full overflow-hidden"
         style={
           showFirst
             ? undefined

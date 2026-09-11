@@ -94,7 +94,7 @@ export function NavRail({ activeTag, onSelectTag, counts }: NavRailProps) {
 export function LaneChips({ activeTag, onSelectTag, counts }: NavRailProps) {
   return (
     <nav
-      className="md-hscroll flex shrink-0 items-center gap-2 px-3 py-1.5"
+      className="md-hscroll flex min-w-0 shrink-0 items-center gap-2 px-3 py-1.5"
       style={{
         background: "var(--md-container-low)",
         paddingLeft: "max(0.75rem, env(safe-area-inset-left))",

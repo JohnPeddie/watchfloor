@@ -11,6 +11,7 @@ type BriefPaneProps = {
   selectedStoryId: string | null;
   onSelectStory: (story: BriefStoryDTO) => void;
   rebuilding?: boolean;
+  loading?: boolean;
   onRebuild?: () => void;
 };
 
@@ -19,9 +20,11 @@ export function BriefPane({
   selectedStoryId,
   onSelectStory,
   rebuilding = false,
+  loading = false,
   onRebuild,
 }: BriefPaneProps) {
   const generator = brief ? briefGeneratorLabel(brief.source) : null;
+  const waiting = !brief && loading;
 
   return (
     <section className="md-pane flex h-full min-h-0 flex-col">
@@ -29,7 +32,7 @@ export function BriefPane({
         <div className="min-w-0">
           <div className="md-title-lg">Daily brief</div>
           <div className="md-label-sm truncate">
-            {brief ? brief.title : "No product loaded"}
+            {brief ? brief.title : waiting ? "Opening today's brief…" : "No product loaded"}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -60,7 +63,11 @@ export function BriefPane({
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
-        {!brief && (
+        {waiting && (
+          <p className="md-body px-1 py-4">Opening today&apos;s brief…</p>
+        )}
+
+        {!brief && !loading && (
           <p className="md-body px-1 py-4">
             No brief in holdings. Use <strong>Rebuild</strong> to generate today&apos;s Global
             Radar Report, or run <code>npm run brief</code>.

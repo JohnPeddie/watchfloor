@@ -51,7 +51,7 @@ export function TrafficPane({
   const rows = useMemo(() => orderArticles(articles, sort), [articles, sort]);
 
   return (
-    <section className="md-pane flex h-full min-h-0 flex-col">
+    <section className="md-pane flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden">
       <div className="md-pane-head">
         <div className="min-w-0">
           <div className="md-title-lg">Reporting stream</div>
@@ -143,7 +143,7 @@ function ArticleRow({
       <MediaFrame src={article.imageUrl} className="w-[88px] rounded-lg" />
 
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-2">
+        <div className="mb-0.5 flex min-w-0 items-center gap-2 overflow-hidden">
           <PrecedenceChip precedence={article.precedence} dense />
           <span className="md-label-sm md-mono truncate text-[var(--md-secondary)]">
             {article.sourceCode}

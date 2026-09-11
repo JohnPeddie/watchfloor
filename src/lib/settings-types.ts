@@ -1,13 +1,13 @@
 export type LlmProviderId = "rules" | "ollama" | "lmstudio";
 
+export type BriefClockTime = { hour: number; minute: number };
+
 export type WatchfloorSettings = {
   ingestEnabled: boolean;
   ingestIntervalMinutes: number;
   briefEnabled: boolean;
-  briefHour: number;
-  briefMinute: number;
-  /** How many times to rebuild the brief each day, spaced evenly from briefHour:briefMinute. */
-  briefTimesPerDay: number;
+  /** Wall-clock times to rebuild the brief each day, in the server timezone. */
+  briefTimes: BriefClockTime[];
   /** Which engine writes daily brief items and on-demand why-it-matters lines. */
   llmProvider: LlmProviderId;
   /**
@@ -90,9 +90,7 @@ export const DEFAULT_SETTINGS: WatchfloorSettings = {
   ingestEnabled: true,
   ingestIntervalMinutes: 60,
   briefEnabled: true,
-  briefHour: 6,
-  briefMinute: 0,
-  briefTimesPerDay: 1,
+  briefTimes: [{ hour: 6, minute: 0 }],
   llmProvider: "lmstudio",
   llmHost: "",
   llmModel: "",
@@ -110,16 +108,76 @@ export function defaultSettings(): WatchfloorSettings {
   return { ...DEFAULT_SETTINGS, llmProvider: llmProviderFromEnv() };
 }
 
-export const BRIEF_FREQUENCIES: { times: number; label: string }[] = [
-  { times: 1, label: "Once a day" },
-  { times: 2, label: "Twice a day (every 12 hours)" },
-  { times: 3, label: "3 times a day (every 8 hours)" },
-  { times: 4, label: "4 times a day (every 6 hours)" },
-  { times: 6, label: "6 times a day (every 4 hours)" },
-  { times: 8, label: "8 times a day (every 3 hours)" },
-  { times: 12, label: "12 times a day (every 2 hours)" },
-  { times: 24, label: "Every hour" },
-];
+export const BRIEF_TIMES_MAX = 24;
+
+function clampClock(hour: number, minute: number): BriefClockTime {
+  return {
+    hour: Math.min(23, Math.max(0, Math.round(hour))),
+    minute: Math.min(59, Math.max(0, Math.round(minute))),
+  };
+}
+
+function clockKey(time: BriefClockTime): number {
+  return time.hour * 60 + time.minute;
+}
+
+function evenBriefTimes(hour: number, minute: number, timesPerDay: number): BriefClockTime[] {
+  const count = Math.min(BRIEF_TIMES_MAX, Math.max(1, Math.round(timesPerDay)));
+  const start = hour * 60 + minute;
+  const step = (24 * 60) / count;
+  const seen = new Set<number>();
+  const times: BriefClockTime[] = [];
+  for (let i = 0; i < count; i++) {
+    const mins = Math.round(start + i * step) % (24 * 60);
+    if (seen.has(mins)) continue;
+    seen.add(mins);
+    times.push({ hour: Math.floor(mins / 60), minute: mins % 60 });
+  }
+  times.sort((a, b) => clockKey(a) - clockKey(b));
+  // Four even slots from 06:00 include midnight. Keep the three daytime runs.
+  const origin = clampClock(hour, minute);
+  if (count === 4 && origin.hour === 6 && origin.minute === 0) {
+    const daytime = times.filter((time) => time.hour !== 0 || time.minute !== 0);
+    if (daytime.length) return daytime;
+  }
+  return times.length ? times : [{ hour: 6, minute: 0 }];
+}
+
+/**
+ * Reads `briefTimes`, or expands the old start-time + times-per-day fields.
+ */
+export function parseBriefTimes(raw: unknown): BriefClockTime[] {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  if (Array.isArray(o.briefTimes) || Array.isArray(raw)) {
+    const list = Array.isArray(o.briefTimes) ? o.briefTimes : (raw as unknown[]);
+    const seen = new Set<number>();
+    const times: BriefClockTime[] = [];
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue;
+      const hour = Number((item as { hour?: unknown }).hour);
+      const minute = Number((item as { minute?: unknown }).minute);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
+      const time = clampClock(hour, minute);
+      const key = clockKey(time);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      times.push(time);
+      if (times.length >= BRIEF_TIMES_MAX) break;
+    }
+    if (times.length) {
+      times.sort((a, b) => clockKey(a) - clockKey(b));
+      return times;
+    }
+  }
+  const hour = Number(o.briefHour);
+  const minute = Number(o.briefMinute);
+  const perDay = Number(o.briefTimesPerDay);
+  return evenBriefTimes(
+    Number.isFinite(hour) ? hour : 6,
+    Number.isFinite(minute) ? minute : 0,
+    Number.isFinite(perDay) ? perDay : 1,
+  );
+}
 
 export const HOLDINGS_SIZES: { count: number; label: string }[] = [
   { count: 150, label: "150 articles" },

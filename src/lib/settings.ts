@@ -1,6 +1,5 @@
 import { prisma } from "./db";
 import { pruneOldestArticles } from "./retention";
-import { todayInZone, zonedDate, zone } from "./clock";
 import {
   DEFAULT_SETTINGS,
   GLOBE_IMAGE_MAX,
@@ -9,13 +8,16 @@ import {
   HOLDINGS_MIN,
   defaultSettings,
   llmProviderFromEnv,
+  parseBriefTimes,
   parseInsightOrder,
   type LlmProviderId,
   type WatchfloorSettings,
 } from "./settings-types";
 
+export { briefIsDue, nextBriefAt } from "./brief-schedule";
+
 export {
-  BRIEF_FREQUENCIES,
+  BRIEF_TIMES_MAX,
   DEFAULT_SETTINGS,
   GLOBE_IMAGE_MAX,
   GLOBE_IMAGE_MIN,
@@ -28,7 +30,9 @@ export {
   LLM_PROVIDERS,
   defaultSettings,
   llmProviderFromEnv,
+  parseBriefTimes,
   parseInsightOrder,
+  type BriefClockTime,
   type InsightCardId,
   type LlmProviderId,
   type WatchfloorSettings,
@@ -49,9 +53,6 @@ function parseProvider(raw: unknown): LlmProviderId | null {
 export function parseSettings(raw: unknown): WatchfloorSettings {
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const interval = Number(o.ingestIntervalMinutes);
-  const hour = Number(o.briefHour);
-  const minute = Number(o.briefMinute);
-  const times = Number(o.briefTimesPerDay);
   const holdings = Number(o.holdingsMax);
   const globeImages = Number(o.globeImageMax);
   const host = typeof o.llmHost === "string" ? o.llmHost.trim().slice(0, 200) : "";
@@ -75,9 +76,7 @@ export function parseSettings(raw: unknown): WatchfloorSettings {
         ? Math.round(interval)
         : DEFAULT_SETTINGS.ingestIntervalMinutes,
     briefEnabled: o.briefEnabled !== false,
-    briefHour: Number.isFinite(hour) ? Math.min(23, Math.max(0, Math.round(hour))) : 6,
-    briefMinute: Number.isFinite(minute) ? Math.min(59, Math.max(0, Math.round(minute))) : 0,
-    briefTimesPerDay: Number.isFinite(times) ? Math.min(24, Math.max(1, Math.round(times))) : 1,
+    briefTimes: parseBriefTimes(o),
     llmProvider: parseProvider(o.llmProvider) ?? llmProviderFromEnv(),
     llmHost: host,
     llmModel: model,
@@ -146,69 +145,7 @@ export function nextIngestAt(settings: WatchfloorSettings, lastIngestAt: Date | 
   return new Date(lastIngestAt.getTime() + settings.ingestIntervalMinutes * 60_000);
 }
 
-function calendarDateOffset(date: string, days: number, tz: string): string {
-  const noon = zonedDate(date, 12, 0, tz);
-  return todayInZone(new Date(noon.getTime() + days * 24 * 3600_000), tz);
-}
-
-function briefIntervalMs(timesPerDay: number): number {
-  return (24 * 60 * 60 * 1000) / timesPerDay;
-}
-
-/** Start times for each run, from yesterday through two days ahead. */
-function briefSlotsAround(settings: WatchfloorSettings, now: Date, tz: string): Date[] {
-  const today = todayInZone(now, tz);
-  const times = settings.briefTimesPerDay;
-  const interval = briefIntervalMs(times);
-  const slots: Date[] = [];
-  for (const day of [-1, 0, 1, 2]) {
-    const start = zonedDate(
-      calendarDateOffset(today, day, tz),
-      settings.briefHour,
-      settings.briefMinute,
-      tz,
-    );
-    for (let i = 0; i < times; i++) {
-      slots.push(new Date(start.getTime() + i * interval));
-    }
-  }
-  slots.sort((a, b) => a.getTime() - b.getTime());
-  const unique: Date[] = [];
-  for (const slot of slots) {
-    const prev = unique[unique.length - 1];
-    if (!prev || prev.getTime() !== slot.getTime()) unique.push(slot);
-  }
-  return unique;
-}
-
-export function nextBriefAt(
-  settings: WatchfloorSettings,
-  lastBriefAt: Date | null,
-  now = new Date(),
-): Date | null {
-  if (!settings.briefEnabled) return null;
-  const tz = zone();
-  const slots = briefSlotsAround(settings, now, tz);
-  const lastMs = lastBriefAt?.getTime() ?? 0;
-  const pending = slots.filter((slot) => slot.getTime() > lastMs);
-  if (pending.length === 0) return null;
-
-  const todaysStart = zonedDate(todayInZone(now, tz), settings.briefHour, settings.briefMinute, tz);
-  // Fresh install: wait for today's start rather than catching up a missed yesterday slot.
-  if (lastBriefAt == null && now.getTime() < todaysStart.getTime()) {
-    return todaysStart;
-  }
-
-  const nextUnsatisfied = pending[0]!;
-  return nextUnsatisfied.getTime() <= now.getTime() ? now : nextUnsatisfied;
-}
-
 export function ingestIsDue(settings: WatchfloorSettings, lastIngestAt: Date | null, now = new Date()): boolean {
   const next = nextIngestAt(settings, lastIngestAt, now);
-  return next != null && next.getTime() <= now.getTime();
-}
-
-export function briefIsDue(settings: WatchfloorSettings, lastBriefAt: Date | null, now = new Date()): boolean {
-  const next = nextBriefAt(settings, lastBriefAt, now);
   return next != null && next.getTime() <= now.getTime();
 }

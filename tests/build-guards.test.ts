@@ -28,6 +28,16 @@ test("every RSS feed has a unique id, code, and http(s) url", () => {
   }
 });
 
+test("WatchfloorDashboard restores a floor cache instead of waiting on every API", () => {
+  const src = readFileSync(join(root, "src/components/WatchfloorDashboard.tsx"), "utf8");
+  assert.match(
+    src,
+    /import\s*\{[^}]*\breadFloorCache\b[^}]*\}\s*from\s*["']@\/lib\/floor-cache["']/,
+    "readFloorCache is used but not imported — that fails next build",
+  );
+  assert.match(src, /useLayoutEffect/, "floor cache must restore before first paint");
+});
+
 test("WatchfloorDashboard imports every name it calls from source-web", () => {
   const src = readFileSync(join(root, "src/components/WatchfloorDashboard.tsx"), "utf8");
   if (!/\bbuildSourceWeb\s*\(/.test(src)) return;
